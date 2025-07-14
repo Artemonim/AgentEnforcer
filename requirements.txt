@@ -1,0 +1,9 @@
+gitignore-parser
+black
+isort
+flake8
+mypy
+pyright
+pytest
+# Development dependencies if needed 
+bump-my-version

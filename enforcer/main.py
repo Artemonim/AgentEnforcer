@@ -5,7 +5,7 @@ from .config import load_config
 
 def main():
     parser = argparse.ArgumentParser(description='Agent Enforcer: Code Quality Checker')
-    parser.add_argument('path', nargs='?', default='.', help='Path to check (file or directory)')
+    parser.add_argument('paths', nargs='*', default=['.'], help='Paths to check (files or directories). Defaults to current directory.')
     parser.add_argument('--ignore', help='Comma-separated rules to disable for this run')
     parser.add_argument('--verbose', '-v', action='store_true', help='Show detailed issue list in the console')
     args = parser.parse_args()
@@ -21,7 +21,7 @@ def main():
                 disabled.setdefault(lang, []).append(r)
             else:
                 disabled.setdefault('global', []).append(rule)
-    enforcer = Enforcer(root_path, args.path, config, verbose=args.verbose)
+    enforcer = Enforcer(root_path, args.paths, config, verbose=args.verbose)
     enforcer.run_checks()
 
 if __name__ == '__main__':

@@ -15,11 +15,12 @@ setup(
         'mypy',
         'pyright',
         'pytest',
-        # Add others as needed
+        'fastmcp',
     ],
     entry_points={
         'console_scripts': [
             'agent-enforcer = enforcer.main:main',
+            'agent-enforcer-mcp = enforcer.mcp_server:main',
         ],
     },
 ) 

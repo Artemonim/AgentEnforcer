@@ -9,9 +9,14 @@ from .presenter import Presenter
 
 # * Core class for Agent Enforcer
 class Enforcer:
-    def __init__(self, root_path, target_path=None, config=None, verbose=False):
+    def __init__(self, root_path, target_paths=None, config=None, verbose=False):
         self.root_path = os.path.abspath(root_path)
-        self.target_path = os.path.abspath(target_path) if target_path else self.root_path
+        
+        if target_paths:
+            self.target_paths = [os.path.abspath(p) for p in target_paths]
+        else:
+            self.target_paths = [self.root_path]
+
         self.config = config or {}
         self.verbose = verbose
         self.gitignore_path = os.path.join(self.root_path, '.gitignore')
@@ -46,16 +51,30 @@ class Enforcer:
 
     def scan_files(self):
         files_by_lang = {}
-        for root, dirs, files in os.walk(self.target_path):
-            # Prune directories based on .gitignore
-            dirs[:] = [d for d in dirs if not self.gitignore(os.path.join(root, d))]
-            for file in files:
-                file_path = os.path.join(root, file)
-                if self.gitignore(file_path):
+        
+        for path in self.target_paths:
+            if os.path.isfile(path):
+                if self.gitignore(path):
                     continue
-                lang = self.get_language(file_path)
+                lang = self.get_language(path)
                 if lang:
-                    files_by_lang.setdefault(lang, []).append(file_path)
+                    files_by_lang.setdefault(lang, []).append(path)
+            elif os.path.isdir(path):
+                for root, dirs, files in os.walk(path):
+                    # Prune directories based on .gitignore
+                    dirs[:] = [d for d in dirs if not self.gitignore(os.path.join(root, d))]
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        if self.gitignore(file_path):
+                            continue
+                        lang = self.get_language(file_path)
+                        if lang:
+                            files_by_lang.setdefault(lang, []).append(file_path)
+                            
+        # Remove duplicates if paths overlap
+        for lang in files_by_lang:
+            files_by_lang[lang] = sorted(list(set(files_by_lang[lang])))
+            
         return files_by_lang
 
     def get_language(self, file_path):

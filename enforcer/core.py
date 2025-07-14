@@ -12,7 +12,11 @@ class Enforcer:
     def __init__(self, root_path, target_paths=None, config=None, verbose=False):
         self.root_path = os.path.abspath(root_path)
         
-        if target_paths:
+        # Determine if this is a full-project scan or a targeted scan.
+        # A full scan respects .gitignore, a targeted scan does not.
+        self.is_targeted_scan = bool(target_paths) and target_paths != [self.root_path]
+
+        if self.is_targeted_scan:
             self.target_paths = [os.path.abspath(p) for p in target_paths]
         else:
             self.target_paths = [self.root_path]
@@ -20,7 +24,10 @@ class Enforcer:
         self.config = config or {}
         self.verbose = verbose
         self.gitignore_path = os.path.join(self.root_path, '.gitignore')
-        self.gitignore = self._load_gitignore()
+        
+        # Only use gitignore for full-project scans.
+        self.gitignore = self._load_gitignore() if not self.is_targeted_scan else (lambda x: False)
+        
         self.plugins = load_plugins()
         self.presenter = Presenter(verbose=self.verbose)
         self.detailed_logger, self.stats_logger = self.setup_logging()
@@ -28,8 +35,13 @@ class Enforcer:
 
     def _load_gitignore(self):
         if os.path.exists(self.gitignore_path):
-            from gitignore_parser import parse_gitignore
-            return parse_gitignore(self.gitignore_path, self.root_path)
+            try:
+                from gitignore_parser import parse_gitignore
+                return parse_gitignore(self.gitignore_path, self.root_path)
+            except Exception as e:
+                # If the parser fails for any reason, print a warning and treat as no-op
+                print(f"Warning: Could not parse .gitignore file at {self.gitignore_path}. Error: {e}")
+                return lambda x: False
         return lambda x: False
 
     def setup_logging(self):

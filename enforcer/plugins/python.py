@@ -36,7 +36,8 @@ class Plugin:
 
     def lint(self, files, disabled_rules, tool_configs=None):
         tool_configs = tool_configs or {}
-        all_errors = []
+        errors = []
+        warnings = []
 
         # Pyright
         pyright_cmd = [sys.executable, '-m', 'pyright', '--outputjson']
@@ -46,16 +47,19 @@ class Plugin:
             try:
                 pyright_data = json.loads(pyright_res.stdout)
                 for diag in pyright_data.get("generalDiagnostics", []):
-                    if diag.get('severity') == 'information': continue
-                    all_errors.append({
+                    issue = {
                         "tool": "pyright",
                         "file": diag.get("file"),
                         "line": diag.get("range", {}).get("start", {}).get("line", 0) + 1,
                         "message": diag.get("message"),
                         "rule": diag.get("rule", "")
-                    })
+                    }
+                    if diag.get('severity') == 'error':
+                        errors.append(issue)
+                    elif diag.get('severity') == 'warning':
+                        warnings.append(issue)
             except json.JSONDecodeError:
-                all_errors.append({"tool": "pyright", "file": "unknown", "line": 0, "message": "Failed to parse pyright JSON output"})
+                errors.append({"tool": "pyright", "file": "unknown", "line": 0, "message": "Failed to parse pyright JSON output"})
 
         # flake8
         flake8_cmd = [sys.executable, '-m', 'flake8', f'--ignore={",".join(disabled_rules)}']
@@ -65,14 +69,19 @@ class Plugin:
         flake8_res = subprocess.run(flake8_cmd, capture_output=True, text=True, encoding='utf-8')
         if flake8_res.stdout:
             for line in flake8_res.stdout.splitlines():
-                match = re.match(r"([^:]+):(\d+):(\d+): (.+)", line)
+                match = re.match(r"([^:]+):(\d+):(\d+): ([EFWC]\d+) (.+)", line)
                 if match:
-                    all_errors.append({
+                    code = match.group(4)
+                    issue = {
                         "tool": "flake8", "file": match.group(1), "line": int(match.group(2)),
-                        "message": match.group(4).strip()
-                    })
+                        "message": match.group(5).strip(), "rule": code
+                    }
+                    if code.startswith('E') or code.startswith('F'):
+                        errors.append(issue)
+                    else:
+                        warnings.append(issue)
         
-        # mypy
+        # mypy - all are errors
         mypy_cmd = [sys.executable, '-m', 'mypy']
         if 'mypy' in tool_configs:
             mypy_cmd.extend(['--config-file', tool_configs['mypy']])
@@ -88,12 +97,12 @@ class Plugin:
                     if rule_match:
                         message = message[:-len(rule_match.group(0))].strip()
 
-                    all_errors.append({
+                    errors.append({
                         "tool": "mypy", "file": match.group(1), "line": int(match.group(2)),
                         "message": message, "rule": rule
                     })
 
-        return all_errors
+        return {"errors": errors, "warnings": warnings}
 
     def compile(self, files):
         errors = []

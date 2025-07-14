@@ -2,22 +2,22 @@ import os
 import logging
 import json
 import shutil
-import subprocess
 import datetime
+import sys
 from .plugins import load_plugins
 from .presenter import Presenter
-import sys
 
 # * Core class for Agent Enforcer
 class Enforcer:
-    def __init__(self, root_path, target_path=None, config=None):
+    def __init__(self, root_path, target_path=None, config=None, verbose=False):
         self.root_path = os.path.abspath(root_path)
         self.target_path = os.path.abspath(target_path) if target_path else self.root_path
         self.config = config or {}
+        self.verbose = verbose
         self.gitignore_path = os.path.join(self.root_path, '.gitignore')
         self.gitignore = self._load_gitignore()
         self.plugins = load_plugins()
-        self.presenter = Presenter()
+        self.presenter = Presenter(verbose=self.verbose)
         self.detailed_logger, self.stats_logger = self.setup_logging()
         self.warned_missing = set()
 
@@ -75,81 +75,83 @@ class Enforcer:
             self.presenter.status("No files to check.", "warning")
             return {}
 
-        total_errors = {}
+        all_errors = {}
+        all_warnings = {}
+        
         for lang, files in files_by_lang.items():
             self.presenter.separator(f"Language: {lang}")
-            plugin = self.plugins[lang]
+            plugin = self.plugins.get(lang)
 
-            if not self.check_tools(plugin):
-                self.presenter.status(f"Skipping {lang} due to missing tools.", "warning")
+            if not plugin or not self.check_tools(plugin):
+                self.presenter.status(f"Skipping {lang} due to missing plugin or tools.", "warning")
                 continue
 
-            # Step 2: Autofix style
+            # Autofix
             self.presenter.status("Running auto-fixers...")
             fix_result = plugin.autofix_style(files, self.config.get('tool_configs', {}))
             changed_count = fix_result.get("changed_count", 0)
-            if changed_count > 0:
-                self.presenter.status(f"Formatted {changed_count} files.", "success")
-            else:
-                self.presenter.status("No style changes needed.")
+            self.presenter.status(f"Formatted {changed_count} files." if changed_count > 0 else "No style changes needed.")
 
-            # Step 3: Lint
+            # Lint
             self.presenter.status("Running linters and static analysis...")
             disabled = self.config.get('disabled_rules', {})
-            lint_errors = plugin.lint(files, disabled.get(lang, []) + disabled.get('global', []), self.config.get('tool_configs', {}))
+            lint_result = plugin.lint(files, disabled.get(lang, []) + disabled.get('global', []), self.config.get('tool_configs', {}))
+            
+            lang_errors = lint_result.get("errors", [])
+            lang_warnings = lint_result.get("warnings", [])
+            
+            all_errors[lang] = lang_errors
+            all_warnings[lang] = lang_warnings
 
-            self.presenter.display_errors(lint_errors, lang)
-            if lint_errors:
-                total_errors[lang] = lint_errors
-                self.log_errors(lang, lint_errors, timestamp)
-                self.presenter.status(f"Stopping further checks for {lang} due to critical issues.", "error")
+            self.presenter.display_results(lang_errors, lang_warnings, lang)
+            self.log_issues(lang, lang_errors, lang_warnings)
+            
+            if lang_errors:
+                self.presenter.status(f"Stopping further checks for {lang} due to critical errors.", "error")
                 continue
 
-            # Step 4: Compile
+            # Compile
             self.presenter.status("Running compilation checks...")
             compile_errors = plugin.compile(files)
             if compile_errors:
-                total_errors[lang] = compile_errors
+                # Treat compile issues as errors
+                all_errors[lang].extend(compile_errors)
+                self.presenter.display_results(compile_errors, [], lang)
                 self.presenter.status(f"Compilation failed for {lang}", "error")
-                # log errors...
                 continue
             else:
                  self.presenter.status("Compilation successful.", "success")
             
-            # Step 5: Test
+            # Test
             self.presenter.status("Running tests...")
             test_errors = plugin.test(self.root_path)
             if test_errors:
-                total_errors[lang] = test_errors
+                # Treat test issues as errors
+                all_errors[lang].extend(test_errors)
+                self.presenter.display_results(test_errors, [], lang)
                 self.presenter.status(f"Tests failed for {lang}", "error")
-                # log errors...
             else:
                 self.presenter.status("All tests passed.", "success")
 
+        total_error_count = sum(len(e) for e in all_errors.values())
+        total_warning_count = sum(len(w) for w in all_warnings.values())
+        self.presenter.final_summary(all_errors, all_warnings)
 
-        self.presenter.separator("Summary")
-        if not total_errors:
-            self.presenter.status("All checks passed successfully!", "success")
-        else:
-            for lang, errors in total_errors.items():
-                self.presenter.status(f"{lang}: {len(errors)} issues found.", "error")
+        return {"errors": all_errors, "warnings": all_warnings}
 
-        return total_errors
-
-    def log_errors(self, lang, errors, timestamp):
+    def log_issues(self, lang, errors, warnings):
         # Detailed log
-        self.detailed_logger.debug(f"--- Errors for {lang} at {timestamp} ---")
-        for error in errors:
-            self.detailed_logger.debug(json.dumps(error))
+        for issue in errors + warnings:
+            self.detailed_logger.debug(json.dumps(issue))
             
-        # Stats log: summarize with counts
-        error_counts = {}
-        for err in errors:
-            err_type = f"[{err.get('tool', 'unknown')}] {err.get('rule', 'generic')}"
-            error_counts[err_type] = error_counts.get(err_type, 0) + 1
+        # Stats log
+        stats = {}
+        for issue in errors + warnings:
+            issue_type = f"[{issue.get('tool', 'unknown')}] {issue.get('rule', 'generic')}"
+            stats[issue_type] = stats.get(issue_type, 0) + 1
             
-        stats_summary = [f"{k} (x{v})" for k, v in sorted(error_counts.items())]
-        self.stats_logger.info(f"{lang}: {', '.join(stats_summary)}")
+        for issue_type, count in sorted(stats.items()):
+            self.stats_logger.info(f"{lang}: {issue_type} (x{count})")
 
     def check_tools(self, plugin):
         required_cmds = plugin.get_required_commands()

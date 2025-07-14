@@ -5,7 +5,7 @@ import asyncio
 from typing import List, Optional
 import json
 
-mcp = FastMCP('agent-enforcer-server')
+mcp = FastMCP('agent_enforcer')
 
 @mcp.tool()
 def run_check(targets: Optional[str] = None, check_git_modified_files: bool = False, verbose: bool = False) -> str:
@@ -19,7 +19,7 @@ def run_check(targets: Optional[str] = None, check_git_modified_files: bool = Fa
 
     :param targets: A JSON string representing a list of relative paths (e.g., '["src/main.py", "tests/"]').
     :param check_git_modified_files: If True, ignores 'targets' and checks files modified in git.
-    :param verbose: If True, provides a detailed, file-by-file list of all issues instead of a summary.
+    :param verbose: If True, provides a detailed, file-by-file list of all issues. For AI use, it is better to leave this False unless a detailed report is explicitly needed.
     :return: A string containing the formatted results of the check, similar to the console output.
     """
     paths_to_check = None

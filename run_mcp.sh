@@ -3,8 +3,9 @@
 # from the user's current environment. This avoids issues where 'agent-enforcer-mcp'
 # might not be in the PATH that Cursor's environment can see.
 
-# Find the directory where the script is located
+# Find the directory where the script is located and cd into it
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+cd -- "$SCRIPT_DIR"
 
 # We assume a virtual environment 'venv' exists in the project root.
 # We'll activate it to make sure we use the right python and dependencies.

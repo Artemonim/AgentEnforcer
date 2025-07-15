@@ -22,3 +22,10 @@ def load_config(root_path):
             with open(os.path.join(enforcer_dir, file), "r") as f:
                 config["tool_configs"][tool] = json.load(f)
     return config
+
+
+def save_config(root_path, config):
+    enforcer_dir = os.path.join(root_path, ".enforcer")
+    config_path = os.path.join(enforcer_dir, "config.json")
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=4)

@@ -114,6 +114,9 @@ class Enforcer:
         all_errors = {}
         all_warnings = {}
 
+        total_errors_list = []
+        total_warnings_list = []
+
         for lang, files in files_by_lang.items():
             self.presenter.separator(f"Language: {lang}")
             plugin = self.plugins.get(lang)
@@ -140,6 +143,7 @@ class Enforcer:
             # Lint
             self.presenter.status("Running linters and static analysis...")
             disabled = self.config.get("disabled_rules", {})
+            severities = self.config.get("severity_overrides", {})
             lint_result = plugin.lint(
                 files,
                 disabled.get(lang, []) + disabled.get("global", []),
@@ -150,15 +154,15 @@ class Enforcer:
             lang_errors = lint_result.get("errors", [])
             lang_warnings = lint_result.get("warnings", [])
 
-            all_errors[lang] = lang_errors
-            all_warnings[lang] = lang_warnings
+            final_errors, final_warnings = self.presenter.display_results(
+                lang_errors, lang_warnings, lang, severities
+            )
+            total_errors_list.extend(final_errors)
+            total_warnings_list.extend(final_warnings)
 
-            self.presenter.display_results(lang_errors, lang_warnings, lang)
             self.log_issues(lang, lang_errors, lang_warnings)
 
-        total_error_count = sum(len(e) for e in all_errors.values())
-        total_warning_count = sum(len(w) for w in all_warnings.values())
-        self.presenter.final_summary(all_errors, all_warnings)
+        self.presenter.final_summary(total_errors_list, total_warnings_list)
 
         return {"errors": all_errors, "warnings": all_warnings}
 

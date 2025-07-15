@@ -45,25 +45,51 @@ class Presenter:
         else:
             self._output("═" * 60)
 
-    def display_results(self, errors: list, warnings: list, lang: str):
+    def display_results(
+        self, errors: list, warnings: list, lang: str, severities: Optional[dict] = None
+    ):
         """Displays a summarized list of structured errors and warnings."""
-        if not errors and not warnings:
+        severities = severities or {}
+        all_issues = errors + warnings
+        final_errors = []
+        final_warnings = []
+
+        for issue in all_issues:
+            rule = issue.get("rule")
+            override = severities.get(rule)
+
+            if override == "error":
+                final_errors.append(issue)
+            elif override == "warning":
+                final_warnings.append(issue)
+            elif override == "info":
+                pass  # Or handle as a separate category if needed
+            elif issue in errors:
+                final_errors.append(issue)
+            else:
+                final_warnings.append(issue)
+
+        if not final_errors and not final_warnings:
             self.status(f"No issues found in {lang} code", "success")
             return
 
-        if errors:
-            self.status(f"Found {len(errors)} error(s) in {lang} code:", "error")
+        if final_errors:
+            self.status(f"Found {len(final_errors)} error(s) in {lang} code:", "error")
             if self.verbose:
-                self._print_issues(errors)
+                self._print_issues(final_errors)
             else:
-                self._print_grouped_summary(errors)
+                self._print_grouped_summary(final_errors)
 
-        if warnings:
-            self.status(f"Found {len(warnings)} warning(s) in {lang} code:", "warning")
+        if final_warnings:
+            self.status(
+                f"Found {len(final_warnings)} warning(s) in {lang} code:", "warning"
+            )
             if self.verbose:
-                self._print_issues(warnings, limit=10)
+                self._print_issues(final_warnings, limit=10)
             else:
-                self._print_grouped_summary(warnings, limit=10)
+                self._print_grouped_summary(final_warnings, limit=10)
+
+        return final_errors, final_warnings
 
     def _print_issues(self, issues: list, limit: Optional[int] = None):
         """Helper to print a list of issues with an optional limit."""
@@ -90,13 +116,14 @@ class Presenter:
 
     def _print_grouped_summary(self, issues: list, limit: Optional[int] = None):
         """Prints a summary of issues grouped by file and rule."""
-        grouped_by_file = defaultdict(lambda: defaultdict(int))
+        grouped_by_file = defaultdict(lambda: defaultdict(list))
         for issue in issues:
             file_path = issue.get("file", "unknown_file").replace(
                 os.getcwd() + os.sep, ""
             )
             rule_id = f"[{issue.get('tool', 'n/a')}][{issue.get('rule', 'n/a')}]"
-            grouped_by_file[file_path][rule_id] += 1
+            line = str(issue.get("line", "N/A"))
+            grouped_by_file[file_path][rule_id].append(line)
 
         file_count = 0
         for file_path, rules in sorted(grouped_by_file.items()):
@@ -106,16 +133,25 @@ class Presenter:
                 )
                 break
 
-            total_issues_in_file = sum(rules.values())
+            total_issues_in_file = sum(len(lines) for lines in rules.values())
             self._output(f"  - {file_path} ({total_issues_in_file} issues):")
-            for rule, count in sorted(rules.items()):
-                self._output(f"    - {rule} (x{count})")
+            for rule, lines in sorted(rules.items()):
+                count = len(lines)
+                unique_lines = sorted(
+                    set(lines), key=lambda x: int(x) if x.isdigit() else 9999
+                )
+                if count <= 3 and unique_lines and unique_lines[0] != "N/A":
+                    lines_str = ", ".join(unique_lines)
+                    detail = f" at line{'s' if count > 1 else ''} {lines_str}"
+                else:
+                    detail = f" (x{count})"
+                self._output(f"    - {rule}{detail}")
             file_count += 1
 
-    def final_summary(self, all_errors: dict, all_warnings: dict):
+    def final_summary(self, all_errors: list, all_warnings: list):
         self.separator("Summary")
-        total_error_count = sum(len(e) for e in all_errors.values())
-        total_warning_count = sum(len(w) for w in all_warnings.values())
+        total_error_count = len(all_errors)
+        total_warning_count = len(all_warnings)
 
         if not total_error_count and not total_warning_count:
             self.status("All checks passed successfully!", "success")
@@ -132,9 +168,8 @@ class Presenter:
                 )
 
             files_with_errors = defaultdict(int)
-            for lang_errors in all_errors.values():
-                for error in lang_errors:
-                    files_with_errors[error.get("file", "unknown")] += 1
+            for error in all_errors:
+                files_with_errors[error.get("file", "unknown")] += 1
 
             if len(files_with_errors) > 10:
                 self._output("\n  Top 3 files with most errors:")

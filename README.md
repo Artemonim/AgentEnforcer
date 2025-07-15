@@ -46,11 +46,11 @@ First, ensure you have the latest version installed in your environment. If you 
 pip install -e .
 ```
 
-This command makes the `agent-enforcer-mcp` script available.
+This command makes the `agent-enforcer-cli` and `agent-enforcer-mcp` scripts available.
 
 ### 2. Configure in Cursor
 
-Once installed, you need to tell Cursor how to run the MCP server. We provide helper scripts for both Windows (`run_mcp.bat`) and Unix-based systems (`run_mcp.sh`).
+Once installed, you need to tell Cursor how to run the MCP server.
 
 1.  Go to `File > Settings > Cursor` (or `Code > Settings > Settings`, then find `Cursor` in the list).
 2.  Scroll down to the **MCP** section.
@@ -61,33 +61,30 @@ Once installed, you need to tell Cursor how to run the MCP server. We provide he
     {
         "mcpServers": {
             "agent_enforcer": {
-                "command": "path/to/your/AgentEnforcer/run_mcp.bat_or_sh",
-                "args": []
+                "command": "G:/path/to/your/AgentEnforcer/run_mcp.bat"
             }
         }
     }
     ```
 
-    -   On **Windows**, set the `command` to the absolute path of `run_mcp.bat`.
-    -   On **macOS/Linux**, set the `command` to the absolute path of `run_mcp.sh`.
+    _Note: On macOS/Linux, use `run_mcp.sh`._
 
     **How to get the absolute path:**
 
-    -   In the Cursor file explorer, right-click on the appropriate script (`run_mcp.bat` or `run_mcp.sh`) and choose `Copy Path`.
+    -   In the Cursor file explorer, right-click on `run_mcp.bat` (or `.sh`) and choose `Copy Path`.
     -   Paste the path into the `command` field.
     -   **Crucially**, ensure all backslashes (`\`) are replaced with forward slashes (`/`).
 
 5.  Save the `mcp.json` file.
-6.  **Restart Cursor** to ensure it picks up the new configuration.
+6.  **Restart Cursor** to ensure it picks up the new configuration or switch the `agent_enforcer` switch in **MCP Tools** back and forth.
 
 After configuration, the `run_check` tool will be available to the AI Agent in Cursor.
 
 ### Troubleshooting
 
 -   **macOS/Linux users:** Make sure `run_mcp.sh` is executable. Run `chmod +x run_mcp.sh` in your terminal.
--   Ensure the absolute path in `mcp.json` is correct and uses forward slashes.
--   Check that your `venv` is set up correctly and has the dependencies from `pip install -e .` installed.
--   If the tool still doesn't appear, check the logs. On Windows, Cursor may open a command prompt window showing script output/errors.
+-   If the tool hangs or fails, try running the CLI command directly to see errors: `python -m enforcer.cli "path/to/check"`.
+-   If the tool doesn't appear in Cursor, check the logs (View > Output > Cursor MCP).
 
 ## Using the MCP Tool
 
@@ -95,47 +92,46 @@ The server exposes one primary tool: `run_check`.
 
 #### Tool: `run_check`
 
-Runs a quality check on the codebase. It can be targeted to specific files or directories.
+Runs a quality check on the codebase by calling the standalone `enforcer-cli`.
 
 **Parameters:**
 
--   `targets` (Optional, `list[str]`): A list of file or directory paths to check. If omitted, the entire repository is checked.
--   `check_git_modified_files` (Optional, `bool`, default: `false`): If set to `true`, the tool will ignore the `targets` parameter and instead check only the files that have been modified, added, or renamed according to `git status`. This is extremely useful for checking only the changes made in the current session.
--   `verbose` (Optional, `bool`, default: `false`): If `true`, the output will be a detailed list of every issue. For AI use, it is better to leave this False unless a detailed report is explicitly needed.
+-   `targets` (Optional, `str`): A JSON string representing a list of file or directory paths. If omitted, the entire repository is checked. Ex: `'["src/main.py", "tests/"]'`.
+-   `check_git_modified_files` (Optional, `bool`, default: `false`): If `true`, ignores `targets` and checks only the files modified in git.
+-   `verbose` (Optional, `bool`, default: `false`): If `true`, provides a detailed, file-by-file list of every issue. Essential for seeing specific error messages.
+-   `timeout_seconds` (Optional, `int`, default: `0`): The timeout for the check in seconds. Set to `0` to disable the timeout entirely.
+-   `debug` (Optional, `bool`, default: `false`): If `true` and the tool _times out_, it will return the full captured output for diagnosing hangs. In a normal run, this flag has no effect.
 
 **Returns:**
 
--   `str`: A formatted string containing the results of the check, similar to what you would see in the console.
+-   `str`: A formatted string containing the results of the check.
 
 **Example Usage (for an AI Agent):**
 
--   **Check the whole project:**
+-   **Check the whole project with details:**
     ```json
     {
-        "tool": "run_check"
+        "tool": "run_check",
+        "params": { "verbose": true }
     }
     ```
 -   **Check a specific file and directory:**
     ```json
     {
         "tool": "run_check",
-        "targets": ["src/main.py", "src/utils/"]
+        "params": {
+            "targets": "[\"src/main.py\", \"src/utils/\"]",
+            "verbose": true
+        }
     }
     ```
 -   **Check only the files I've changed:**
     ```json
     {
         "tool": "run_check",
-        "check_git_modified_files": true
+        "params": {
+            "check_git_modified_files": true,
+            "verbose": true
+        }
     }
     ```
--   **Get a detailed list of issues for a specific file:**
-    ```json
-    {
-        "tool": "run_check",
-        "targets": ["src/problematic_file.py"],
-        "verbose": true
-    }
-    ```
-
-This setup allows an AI agent to flexibly run checks on the entire codebase, specific parts of it, or just the work in progress, making it a much more efficient and targeted tool.

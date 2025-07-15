@@ -14,7 +14,7 @@ def run_check(
     targets: Optional[str] = None,
     check_git_modified_files: bool = False,
     verbose: bool = False,
-    timeout_seconds: int = 120,  # Increased default timeout
+    timeout_seconds: int = 0,
     debug: bool = False,
 ) -> str:
     """
@@ -24,15 +24,21 @@ def run_check(
     separate, clean process, which is more stable, especially on Windows.
 
     :param targets: A JSON string representing a list of file or directory paths.
-    :param check_git_modified_files: If True, checks files modified in git.
+        If omitted, the entire repository is checked.
+    :param check_git_modified_files: If True, ignores 'targets' and checks files
+        modified in git. Default: false.
     :param verbose: If True, provides a detailed, file-by-file list of all issues.
-    :param timeout_seconds: The timeout for the check in seconds.
-    :param debug: If True, returns the full stdout of the tool on timeout for debugging.
+        Default: false.
+    :param timeout_seconds: The timeout for the check in seconds. Set to 0 to
+        disable the timeout. Default: 0.
+    :param debug: If True, returns the full stdout of the tool on timeout for
+        debugging. This is only useful for diagnosing hangs. Default: false.
     :return: A string containing the formatted results or an error message.
     """
     try:
         # Using sys.executable ensures we use the python from the correct venv
         command = [sys.executable, "-m", "enforcer.cli"]
+        timeout = timeout_seconds if timeout_seconds > 0 else None
 
         if verbose:
             command.append("--verbose")
@@ -57,7 +63,7 @@ def run_check(
             command,
             return_output=True,
             check=False,  # We handle the output ourselves
-            timeout=timeout_seconds,
+            timeout=timeout,
         )
 
         if result.returncode != 0:

@@ -156,36 +156,6 @@ class Enforcer:
             self.presenter.display_results(lang_errors, lang_warnings, lang)
             self.log_issues(lang, lang_errors, lang_warnings)
 
-            if lang_errors:
-                self.presenter.status(
-                    f"Stopping further checks for {lang} due to critical errors.",
-                    "error",
-                )
-                continue
-
-            # Compile
-            self.presenter.status("Running compilation checks...")
-            compile_errors = plugin.compile(files)
-            if compile_errors:
-                # Treat compile issues as errors
-                all_errors[lang].extend(compile_errors)
-                self.presenter.display_results(compile_errors, [], lang)
-                self.presenter.status(f"Compilation failed for {lang}", "error")
-                continue
-            else:
-                self.presenter.status("Compilation successful.", "success")
-
-            # Test
-            self.presenter.status("Running tests...")
-            test_errors = plugin.test(self.root_path)
-            if test_errors:
-                # Treat test issues as errors
-                all_errors[lang].extend(test_errors)
-                self.presenter.display_results(test_errors, [], lang)
-                self.presenter.status(f"Tests failed for {lang}", "error")
-            else:
-                self.presenter.status("All tests passed.", "success")
-
         total_error_count = sum(len(e) for e in all_errors.values())
         total_warning_count = sum(len(w) for w in all_warnings.values())
         self.presenter.final_summary(all_errors, all_warnings)
@@ -196,6 +166,10 @@ class Enforcer:
         # Detailed log
         for issue in errors + warnings:
             self.detailed_logger.debug(json.dumps(issue))
+
+        # Ensure logs are written immediately
+        for handler in self.detailed_logger.handlers:
+            handler.flush()
 
         # Stats log
         stats = {}

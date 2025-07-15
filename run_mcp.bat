@@ -5,10 +5,12 @@ REM from the user's current environment on Windows.
 REM Get the directory of this script. %~dp0 expands to the drive and path of the script.
 set "SCRIPT_DIR=%~dp0"
 
-REM Change current directory to the script's directory to ensure all paths are relative to project root
-cd /D "%SCRIPT_DIR%"
+REM ! We do NOT change the current directory anymore to allow running checks
+REM ! in other projects. The CWD of the caller is preserved.
+REM cd /D "%SCRIPT_DIR%"
 
 REM Define the path to the venv activation script for Windows
+REM This venv is for the development of AgentEnforcer itself.
 set "VENV_PATH=%SCRIPT_DIR%venv\Scripts\activate.bat"
 
 IF EXIST "%VENV_PATH%" (

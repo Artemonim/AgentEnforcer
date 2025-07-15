@@ -36,8 +36,10 @@ def run_check(
     :return: A string containing the formatted results or an error message.
     """
     try:
-        # Using sys.executable ensures we use the python from the correct venv
-        command = [sys.executable, "-m", "enforcer.cli"]
+        # Using the console script entry point is more robust than `python -m`
+        # as it avoids potential sys.path conflicts if the target project
+        # also has a directory named 'enforcer'.
+        command = ["agent-enforcer-cli"]
         timeout = timeout_seconds if timeout_seconds > 0 else None
 
         if verbose:
@@ -63,7 +65,7 @@ def run_check(
             command,
             return_output=True,
             check=False,  # We handle the output ourselves
-            timeout=timeout,
+            timeout=timeout if timeout is not None else 60,
         )
 
         if result.returncode != 0:
@@ -76,7 +78,7 @@ def run_check(
         return "Error: 'enforcer-cli' not found. Is the package installed correctly?"
     except Exception as e:
         # Catch timeout errors from run_command and other exceptions
-        if debug and hasattr(e, "stdout") and e.stdout:
+        if debug and hasattr(e, "stdout") and getattr(e, "stdout", None):
             return f"An exception occurred: {e}\n\n--- Captured Log ---\n{e.stdout}"
         return f"An exception occurred: {e}"
 

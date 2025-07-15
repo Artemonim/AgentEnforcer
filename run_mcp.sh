@@ -1,14 +1,16 @@
 #!/bin/bash
 # This script ensures that the MCP server is run with the correct python executable
-# from the user's current environment. This avoids issues where 'agent-enforcer-mcp'
-# might not be in the PATH that Cursor's environment can see.
+# from the user's current environment on Unix-like systems.
 
-# Find the directory where the script is located and cd into it
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
-cd -- "$SCRIPT_DIR"
+# Get the directory of this script.
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# We assume a virtual environment 'venv' exists in the project root.
-# We'll activate it to make sure we use the right python and dependencies.
+# ! We do NOT change the current directory anymore to allow running checks
+# ! in other projects. The CWD of the caller is preserved.
+# cd "$SCRIPT_DIR"
+
+# Define the path to the venv activation script for Unix-like systems.
+# This venv is for the development of AgentEnforcer itself.
 VENV_PATH="$SCRIPT_DIR/venv/bin/activate"
 
 if [ -f "$VENV_PATH" ]; then

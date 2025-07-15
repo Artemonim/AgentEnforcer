@@ -20,17 +20,12 @@ def captured_output():
 class Presenter:
     """Handles formatted console output."""
 
-    def __init__(
-        self, verbose: bool = False, log_collector: Optional[List[str]] = None
-    ):
+    def __init__(self, verbose: bool = False):
         self.verbose = verbose
-        self.log_collector = log_collector
 
     def _output(self, message: str):
-        """Prints to stdout and appends to the log collector if it exists."""
+        """Prints to stdout."""
         print(message)
-        if self.log_collector is not None:
-            self.log_collector.append(message)
 
     def status(self, message: str, level: str = "info"):
         """Prints a status message with a prefix icon."""

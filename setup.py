@@ -20,6 +20,7 @@ setup(
     entry_points={
         "console_scripts": [
             "agent-enforcer = enforcer.main:main",
+            "agent-enforcer-cli = enforcer.cli:main",
             "agent-enforcer-mcp = enforcer.mcp_server:main",
         ],
     },

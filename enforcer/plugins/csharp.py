@@ -19,34 +19,23 @@ class Plugin:
         self,
         files: List[str],
         tool_configs: Optional[dict] = None,
-        log_queue: Optional[Queue] = None,
     ):
         try:
-            run_command(
-                ["dotnet", "format"],
-                return_output=False,
-                log_queue=log_queue,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            if log_queue:
-                log_queue.put(f"Error running dotnet format: {e}")
-        return {"changed_count": 0}  # dotnet format doesn't reliably report changes
+            run_command(["dotnet", "format"], return_output=False)
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        return {"changed_count": 0}
 
     def lint(
         self,
         files: List[str],
         disabled_rules: List[str],
         tool_configs: Optional[dict] = None,
-        log_queue: Optional[Queue] = None,
         root_path: Optional[str] = None,
     ):
-        # In C#, linting and compilation are often the same step.
-        # We run build here and parse errors/warnings.
-        return self._run_build(log_queue, root_path)
+        return self._run_build(root_path)
 
     def compile(self, files: List[str]):
-        # This step is combined with lint for C# projects.
-        # Returning no errors as build is handled in lint().
         return []
 
     def test(self, root_path: str):
@@ -60,28 +49,18 @@ class Plugin:
                     }
                 ]
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass  # Error is already logged by run_command
+            pass
         return []
 
-    def _run_build(
-        self,
-        log_queue: Optional[Queue] = None,
-        root_path: Optional[str] = None,
-    ):
+    def _run_build(self, root_path: Optional[str] = None):
         errors = []
         warnings = []
-        # This regex captures the standard format of dotnet build errors/warnings
-        # Example: C:\Path\File.cs(10,5): error CS0103: The name 'xyz' does not exist...
         pattern = re.compile(
             r"(.+)\((\d+),(\d+)\):\s+(warning|error)\s+([A-Z0-9]+):\s+(.+)"
         )
 
         try:
-            result = run_command(
-                ["dotnet", "build"],
-                return_output=True,
-                log_queue=log_queue,
-            )
+            result = run_command(["dotnet", "build"], return_output=True)
             output = result.stdout + result.stderr
 
             for line in output.splitlines():

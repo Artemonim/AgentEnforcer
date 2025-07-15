@@ -18,25 +18,21 @@ class Plugin:
         self,
         files: List[str],
         tool_configs: Optional[dict] = None,
-        log_queue: Optional[Queue] = None,
     ):
         try:
             run_command(
                 ["./gradlew", "ktlintFormat", "--quiet"],
                 return_output=False,
-                log_queue=log_queue,
             )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            if log_queue:
-                log_queue.put(f"Error running ktlintFormat: {e}")
-        return {"changed_count": 0}  # Can't easily tell, assume 0 for now
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        return {"changed_count": 0}
 
     def lint(
         self,
         files: List[str],
         disabled_rules: List[str],
         tool_configs: Optional[dict] = None,
-        log_queue: Optional[Queue] = None,
         root_path: Optional[str] = None,
     ):
         warnings = []
@@ -46,7 +42,6 @@ class Plugin:
             ktlint_result = run_command(
                 ["./gradlew", "ktlintCheck"],
                 return_output=True,
-                log_queue=log_queue,
             )
             ktlint_pattern = re.compile(r"(.+):(\d+):(\d+):\s+(.+)")
             if ktlint_result.stdout:
@@ -64,9 +59,14 @@ class Plugin:
                                 "message": match.group(4).strip(),
                             }
                         )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError):
             warnings.append(
-                {"tool": "ktlint", "file": "unknown", "line": 0, "message": str(e)}
+                {
+                    "tool": "ktlint",
+                    "file": "unknown",
+                    "line": 0,
+                    "message": "ktlintCheck failed",
+                }
             )
 
         # detekt
@@ -74,7 +74,6 @@ class Plugin:
             detekt_result = run_command(
                 ["./gradlew", "detekt"],
                 return_output=True,
-                log_queue=log_queue,
             )
             detekt_pattern = re.compile(r"(.+):(\d+):(\d+)\s+-\s+(.+)\s+-\s+(.+)")
             if detekt_result.stdout:
@@ -93,9 +92,14 @@ class Plugin:
                                 "rule": match.group(4).strip(),
                             }
                         )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError):
             warnings.append(
-                {"tool": "detekt", "file": "unknown", "line": 0, "message": str(e)}
+                {
+                    "tool": "detekt",
+                    "file": "unknown",
+                    "line": 0,
+                    "message": "detekt failed",
+                }
             )
 
         return {"errors": [], "warnings": warnings}

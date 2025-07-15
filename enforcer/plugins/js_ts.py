@@ -19,16 +19,13 @@ class Plugin:
         self,
         files: List[str],
         tool_configs: Optional[dict] = None,
-        log_queue: Optional[Queue] = None,
     ):
         try:
             cmd = ["npx", "prettier", "--write"]
             cmd.extend(files)
-            run_command(cmd, return_output=False, log_queue=log_queue)
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            if log_queue:
-                log_queue.put(f"Error running prettier: {e}")
-        # Prettier doesn't report changed files, so we return 0
+            run_command(cmd, return_output=False)
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
         return {"changed_count": 0}
 
     def lint(
@@ -36,7 +33,6 @@ class Plugin:
         files: List[str],
         disabled_rules: List[str],
         tool_configs: Optional[dict] = None,
-        log_queue: Optional[Queue] = None,
         root_path: Optional[str] = None,
     ):
         errors = []
@@ -47,7 +43,7 @@ class Plugin:
             cmd = ["npx", "eslint", "--format", "json"]
             cmd.extend(files)
 
-            result = run_command(cmd, return_output=True, log_queue=log_queue)
+            result = run_command(cmd, return_output=True)
 
             # Even with --format json, eslint might print to stderr on config errors
             if result.returncode != 0 and not result.stdout.strip():

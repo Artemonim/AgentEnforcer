@@ -20,7 +20,6 @@ class Plugin:
         self,
         files: List[str],
         tool_configs: Optional[dict] = None,
-        log_queue: Optional[Queue] = None,
     ):
         tool_configs = tool_configs or {}
         changed_files = set()
@@ -31,14 +30,12 @@ class Plugin:
             if "black" in tool_configs:
                 black_cmd.extend(["--config", tool_configs["black"]])
             black_cmd.extend(files)
-            black_res = run_command(
-                black_cmd, return_output=True, log_queue=log_queue
-            )
+            black_res = run_command(black_cmd, return_output=True)
             if black_res.stderr:
                 changed_files.update(re.findall(r"reformatted (.+)", black_res.stderr))
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            if log_queue:
-                log_queue.put(f"Error running black: {e}")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            # Errors are handled by run_command's logging, just pass
+            pass
 
         # Run isort
         try:
@@ -46,14 +43,11 @@ class Plugin:
             if "isort" in tool_configs:
                 isort_cmd.extend(["--settings-path", tool_configs["isort"]])
             isort_cmd.extend(files)
-            isort_res = run_command(
-                isort_cmd, return_output=True, log_queue=log_queue
-            )
+            isort_res = run_command(isort_cmd, return_output=True)
             if isort_res.stderr:
                 changed_files.update(re.findall(r"Fixing (.+)", isort_res.stderr))
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            if log_queue:
-                log_queue.put(f"Error running isort: {e}")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
 
         return {"changed_count": len(changed_files)}
 
@@ -62,7 +56,6 @@ class Plugin:
         files: List[str],
         disabled_rules: List[str],
         tool_configs: Optional[dict] = None,
-        log_queue: Optional[Queue] = None,
         root_path: Optional[str] = None,
     ):
         tool_configs = tool_configs or {}
@@ -73,9 +66,7 @@ class Plugin:
         try:
             pyright_cmd = [sys.executable, "-m", "pyright", "--outputjson"]
             pyright_cmd.extend(files)
-            pyright_res = run_command(
-                pyright_cmd, return_output=True, log_queue=log_queue
-            )
+            pyright_res = run_command(pyright_cmd, return_output=True)
             if pyright_res.stdout:
                 try:
                     pyright_data = json.loads(pyright_res.stdout)
@@ -122,9 +113,7 @@ class Plugin:
             if "flake8" in tool_configs:
                 flake8_cmd.extend(["--config", tool_configs["flake8"]])
             flake8_cmd.extend(files)
-            flake8_res = run_command(
-                flake8_cmd, return_output=True, log_queue=log_queue
-            )
+            flake8_res = run_command(flake8_cmd, return_output=True)
             if flake8_res.stdout:
                 for line in flake8_res.stdout.splitlines():
                     match = re.match(r"([^:]+):(\d+):(\d+): ([EFWC]\d+) (.+)", line)
@@ -155,9 +144,7 @@ class Plugin:
             if "mypy" in tool_configs:
                 mypy_cmd.extend(["--config-file", tool_configs["mypy"]])
             mypy_cmd.extend(files)
-            mypy_res = run_command(
-                mypy_cmd, return_output=True, log_queue=log_queue
-            )
+            mypy_res = run_command(mypy_cmd, return_output=True)
             if mypy_res.stdout:
                 for line in mypy_res.stdout.splitlines():
                     match = re.match(r"([^:]+):(\d+): error: (.+)", line)

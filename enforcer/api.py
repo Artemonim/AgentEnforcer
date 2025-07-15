@@ -1,4 +1,7 @@
+import io
 import json
+from contextlib import redirect_stdout
+from typing import List, Optional
 
 from .config import load_config
 from .core import Enforcer
@@ -14,16 +17,25 @@ def run_enforcer(paths=None, root_path=".", config=None, verbose=False):
     return enforcer.run_checks()
 
 
-def run_enforcer_as_string(*args, **kwargs):
+def run_enforcer_as_string(
+    paths: Optional[List[str]] = None,
+    root_path: str = ".",
+    verbose: bool = False,
+    log_collector: Optional[List[str]] = None,
+) -> str:
     """
-    Runs the enforcer and captures all console output as a single string.
-    This is ideal for wrapping the tool in contexts like an MCP server
-    where a simple string return value is desired.
+    A wrapper around the Enforcer class that captures its stdout for string output.
     """
-    with captured_output() as (stdout, stderr):
-        run_enforcer(*args, **kwargs)
+    output_capture = io.StringIO()
+    # The presenter will now print to stdout AND collect logs if a collector is provided.
+    # We still redirect stdout to capture the final, formatted output for the return value.
+    with redirect_stdout(output_capture):
+        enforcer = Enforcer(
+            root_path=root_path,
+            target_paths=paths,
+            verbose=verbose,
+            log_collector=log_collector,
+        )
+        enforcer.run_checks()
 
-    # We return the captured standard output.
-    # The presenter writes everything to stdout.
-    output = stdout.getvalue()
-    return output
+    return output_capture.getvalue()

@@ -1,58 +1,75 @@
 import os
 import subprocess
+import threading
+from typing import List, Optional
+
+subprocess_lock = threading.Lock()
 
 
-def get_git_modified_files(root_path="."):
+def get_git_modified_files() -> List[str]:
     """
-    Gets the list of modified, added, or renamed files from git status.
-
-    This runs 'git status --porcelain -u no' to get a machine-readable
-    list of files. It includes staged and unstaged changes, but not
-    untracked files.
-
-    Args:
-        root_path (str): The path to the repository root.
-
-    Returns:
-        list[str]: A list of absolute file paths for modified files.
-                   Returns an empty list if git command fails.
+    Returns a list of files modified in the current git repository.
     """
     try:
-        # -u no -> Excludes untracked files
-        # --porcelain -> machine-readable output
-        result = subprocess.run(
-            ["git", "status", "--porcelain", "-u", "no"],
-            capture_output=True,
-            text=True,
+        # Ensure git is installed and we are in a repo
+        subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
             check=True,
-            cwd=root_path,
-            encoding="utf-8",
+            capture_output=True,
         )
 
-        files = []
+        # Get the list of modified files
+        result = subprocess.run(
+            ["git", "status", "--porcelain"], check=True, capture_output=True, text=True
+        )
+
+        modified_files = []
         for line in result.stdout.strip().split("\n"):
-            if not line:
-                continue
-
-            # The format is "XY PATH" or "R  OLD_PATH -> NEW_PATH"
-            # We just need the file path at the end.
-            parts = line.split()
-            if line.startswith("R "):  # Renamed file
-                # R  "source" -> "destination"
-                file_path = parts[-1]
-            else:  # Modified, Added, Deleted, etc.
-                file_path = parts[-1]
-
-            # The path might contain spaces and be quoted
-            file_path = file_path.strip('"')
-
-            # Ensure the file exists, as 'git status' can list deleted files
-            abs_path = os.path.join(root_path, file_path)
-            if os.path.exists(abs_path):
-                files.append(abs_path)
-
-        return files
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        # This can happen if not in a git repo or git is not installed.
-        print(f"Warning: Could not get git status: {e}")
+            if line.strip():
+                # The file path is the second part of the line
+                parts = line.strip().split(maxsplit=1)
+                if len(parts) > 1:
+                    modified_files.append(parts[1])
+        return modified_files
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        if "Not a git repository" not in str(e):
+            print(f"Warning: Could not get git status: {e}")
         return []
+
+
+def run_command(
+    command: List[str],
+    return_output: bool = False,
+    check: bool = False,
+    cwd: Optional[str] = None,
+) -> subprocess.CompletedProcess:
+    """
+    ! A more robust command runner that handles large outputs and potential hangs.
+    It uses a timeout to prevent indefinite hangs.
+    """
+    with subprocess_lock:
+        try:
+            process = subprocess.run(
+                command,
+                capture_output=return_output,
+                text=True,
+                check=check,
+                cwd=cwd,
+                encoding="utf-8",
+                errors="ignore",
+                timeout=120,  # * Add a generous timeout to prevent indefinite hangs
+            )
+            return process
+        except FileNotFoundError as e:
+            # Re-raise with a more informative message
+            raise FileNotFoundError(f"Command not found: {command[0]}") from e
+        except subprocess.CalledProcessError as e:
+            # This is raised when check=True and the process returns a non-zero exit code.
+            # The caller is expected to handle this.
+            raise e
+        except subprocess.TimeoutExpired as e:
+            # Log the timeout and the command that caused it.
+            # We can add more sophisticated logging later if needed.
+            print(f"Warning: Command '{' '.join(command)}' timed out.")
+            # Re-raise the exception so the caller can handle it.
+            raise e

@@ -3,6 +3,7 @@ import os
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
+from typing import List, Optional
 
 
 @contextmanager
@@ -19,8 +20,17 @@ def captured_output():
 class Presenter:
     """Handles formatted console output."""
 
-    def __init__(self, verbose=False):
+    def __init__(
+        self, verbose: bool = False, log_collector: Optional[List[str]] = None
+    ):
         self.verbose = verbose
+        self.log_collector = log_collector
+
+    def _output(self, message: str):
+        """Prints to stdout and appends to the log collector if it exists."""
+        print(message)
+        if self.log_collector is not None:
+            self.log_collector.append(message)
 
     def status(self, message: str, level: str = "info"):
         """Prints a status message with a prefix icon."""
@@ -31,14 +41,14 @@ class Presenter:
             "error": "✗ ",
         }
         prefix = prefixes.get(level, "* ")
-        print(f"{prefix}{message}")
+        self._output(f"{prefix}{message}")
 
     def separator(self, title: str = ""):
         """Prints a separator line with an optional title."""
         if title:
-            print(f"\n{'═' * 20} {title.upper()} {'═' * 20}")
+            self._output(f"\n{'═' * 20} {title.upper()} {'═' * 20}")
         else:
-            print("═" * 60)
+            self._output("═" * 60)
 
     def display_results(self, errors: list, warnings: list, lang: str):
         """Displays a summarized list of structured errors and warnings."""
@@ -60,7 +70,7 @@ class Presenter:
             else:
                 self._print_grouped_summary(warnings, limit=10)
 
-    def _print_issues(self, issues: list, limit: int = None):
+    def _print_issues(self, issues: list, limit: Optional[int] = None):
         """Helper to print a list of issues with an optional limit."""
         for i, issue in enumerate(issues):
             if limit and i >= limit:
@@ -81,9 +91,9 @@ class Presenter:
             rule_info = f" ({rule})" if rule else ""
             tool_info = f"[{tool}]"
 
-            print(f"  {location:<40} {tool_info:<10} {message}{rule_info}")
+            self._output(f"  {location:<40} {tool_info:<10} {message}{rule_info}")
 
-    def _print_grouped_summary(self, issues: list, limit: int = None):
+    def _print_grouped_summary(self, issues: list, limit: Optional[int] = None):
         """Prints a summary of issues grouped by file and rule."""
         grouped_by_file = defaultdict(lambda: defaultdict(int))
         for issue in issues:
@@ -102,12 +112,12 @@ class Presenter:
                 break
 
             total_issues_in_file = sum(rules.values())
-            print(f"  - {file_path} ({total_issues_in_file} issues):")
+            self._output(f"  - {file_path} ({total_issues_in_file} issues):")
             for rule, count in sorted(rules.items()):
-                print(f"    - {rule} (x{count})")
+                self._output(f"    - {rule} (x{count})")
             file_count += 1
 
-    def final_summary(self, all_errors, all_warnings):
+    def final_summary(self, all_errors: dict, all_warnings: dict):
         self.separator("Summary")
         total_error_count = sum(len(e) for e in all_errors.values())
         total_warning_count = sum(len(w) for w in all_warnings.values())
@@ -132,14 +142,16 @@ class Presenter:
                     files_with_errors[error.get("file", "unknown")] += 1
 
             if len(files_with_errors) > 10:
-                print("\n  Top 3 files with most errors:")
+                self._output("\n  Top 3 files with most errors:")
                 top_3 = sorted(
                     files_with_errors.items(), key=lambda item: item[1], reverse=True
                 )[:3]
                 for file, count in top_3:
-                    print(
+                    self._output(
                         f"    - {file.replace(os.getcwd() + os.sep, '')} ({count} errors)"
                     )
 
-        print("\n* For a detailed machine-readable report, see Enforcer_last_check.log")
-        print("* You can use tools like `grep` to analyze the log file.")
+        self._output(
+            "\n* For a detailed machine-readable report, see Enforcer_last_check.log"
+        )
+        self._output("* You can use tools like `grep` to analyze the log file.")

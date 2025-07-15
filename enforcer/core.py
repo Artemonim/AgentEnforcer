@@ -11,7 +11,14 @@ from .presenter import Presenter
 
 # * Core class for Agent Enforcer
 class Enforcer:
-    def __init__(self, root_path, target_paths=None, config=None, verbose=False):
+    def __init__(
+        self,
+        root_path,
+        target_paths=None,
+        config=None,
+        verbose=False,
+        log_collector=None,
+    ):
         self.root_path = os.path.abspath(root_path)
 
         if target_paths:
@@ -21,10 +28,13 @@ class Enforcer:
 
         self.config = config or {}
         self.verbose = verbose
+        self.log_collector = log_collector
         self.gitignore_path = os.path.join(self.root_path, ".gitignore")
         self.gitignore = self._load_gitignore()
         self.plugins = load_plugins()
-        self.presenter = Presenter(verbose=self.verbose)
+        self.presenter = Presenter(
+            verbose=self.verbose, log_collector=self.log_collector
+        )
         self.detailed_logger, self.stats_logger = self.setup_logging()
         self.warned_missing = set()
 

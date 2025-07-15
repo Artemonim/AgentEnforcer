@@ -1,6 +1,8 @@
 import gc
 import json
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+import multiprocessing as mp
+import queue
+from concurrent.futures import TimeoutError
 from typing import List, Optional
 
 from fastmcp import FastMCP
@@ -11,22 +13,33 @@ from .utils import get_git_modified_files
 mcp = FastMCP("agent_enforcer")
 
 
-def _run_check_sync(
+def _run_check_process(
     targets: Optional[str],
     check_git_modified_files: bool,
     verbose: bool,
-    log_collector: Optional[List[str]] = None,
-) -> str:
-    """Synchronous wrapper for the core logic that will be run in a thread."""
-    gc.disable()  # ! Disable GC to prevent potential deadlocks in subprocesses from threads.
+    result_queue: mp.Queue,
+    log_queue: Optional[mp.Queue] = None,
+):
+    """Wraps the core logic to be run in a separate process."""
+    gc.disable()  # ! Disable GC to prevent potential deadlocks in subprocesses.
+
     try:
         paths_to_check = None
+        if log_queue:
+            log_queue.put("Analyzing run parameters...")
 
         if check_git_modified_files:
+            if log_queue:
+                log_queue.put("Checking for modified git files...")
             paths_to_check = get_git_modified_files()
             if not paths_to_check:
-                return "No modified files found in git status to check."
+                result_queue.put(
+                    ("success", "No modified files found in git status to check.")
+                )
+                return
         elif targets:
+            if log_queue:
+                log_queue.put(f"Received targets for analysis: {targets}")
             try:
                 parsed_targets = json.loads(targets)
                 if isinstance(parsed_targets, list):
@@ -36,14 +49,26 @@ def _run_check_sync(
             except json.JSONDecodeError:
                 paths_to_check = [targets]
 
-        return run_enforcer_as_string(
+        if log_queue:
+            log_queue.put(f"Starting analysis on paths: {paths_to_check}")
+
+        # Note: run_enforcer_as_string now expects log_queue, not log_collector
+        result = run_enforcer_as_string(
             paths=paths_to_check,
             root_path=".",
             verbose=verbose,
-            log_collector=log_collector,
+            log_queue=log_queue,
         )
+
+        if log_queue:
+            log_queue.put("Analysis finished successfully.")
+        result_queue.put(("success", result))
+    except Exception as e:
+        if log_queue:
+            log_queue.put(f"[CRITICAL] Unhandled exception in worker process: {e}")
+        result_queue.put(("error", str(e)))
     finally:
-        gc.enable()  # * Re-enable GC after the check is complete.
+        gc.enable()  # * Re-enable GC.
 
 
 @mcp.tool()
@@ -54,8 +79,8 @@ def run_check(
     timeout_seconds: int = 45,
     debug: bool = False,
 ) -> str:
-    f"""
-    Runs a quality check with a {timeout_seconds}-second timeout.
+    """
+    Runs a quality check with a timeout in a separate process to prevent hangs.
 
     The tool can be run in one of three modes:
     1. Git Modified: Set 'check_git_modified_files' to True to check files reported as modified by git.
@@ -69,32 +94,48 @@ def run_check(
     :param debug: If True, enables debug mode, which will return the full log on timeout.
     :return: A string containing the formatted results or an error message if it times out.
     """
-    log_messages: List[str] = []
-    log_collector = log_messages if debug else None
+    # Use multiprocessing to avoid hangs from subprocesses in threads on Windows.
+    result_queue = mp.Queue()
+    log_queue = mp.Queue() if debug else None
 
-    executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(
-        _run_check_sync, targets, check_git_modified_files, verbose, log_collector
+    process = mp.Process(
+        target=_run_check_process,
+        args=(targets, check_git_modified_files, verbose, result_queue, log_queue),
     )
+    process.start()
+    process.join(timeout=timeout_seconds)
 
-    try:
-        # Get the result from the future, with a timeout.
-        return future.result(timeout=timeout_seconds)
-    except TimeoutError:
+    if process.is_alive():
+        process.terminate()
+        process.join(timeout=1)  # Allow time for termination
         error_message = (
             f"Error: The quality check timed out after {timeout_seconds} seconds."
         )
-        if debug:
-            log_str = "\n".join(log_messages)
-            error_message += f"\n\n--- Captured Log ---\n{log_str}"
+        if debug and log_queue is not None:
+            log_messages = []
+            while not log_queue.empty():
+                try:
+                    log_messages.append(log_queue.get_nowait())
+                except queue.Empty:
+                    break
+            if log_messages:
+                log_str = "\n".join(log_messages)
+                error_message += f"\n\n--- Captured Log ---\n{log_str}"
+            else:
+                error_message += "\n\n--- Captured Log ---\n(No logs were captured or process was terminated abruptly)"
         return error_message
-    finally:
-        # Ensure the executor is always shut down.
-        executor.shutdown(wait=False)
+
+    try:
+        status, result = result_queue.get_nowait()
+        if status == "error":
+            return f"Error during check: {result}"
+        return result
+    except queue.Empty:
+        return "Error: Worker process finished but returned no result."
 
 
 def main():
-    mcp.run(transport="stdio")
+    mcp.run()
 
 
 if __name__ == "__main__":

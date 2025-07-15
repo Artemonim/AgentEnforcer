@@ -1,5 +1,10 @@
+import os
 import re
 import subprocess
+from multiprocessing import Queue
+from typing import List, Optional
+
+from ..utils import run_command
 
 
 class Plugin:
@@ -9,82 +14,126 @@ class Plugin:
     def get_required_commands(self):
         return ["./gradlew"]
 
-    def autofix_style(self, files, tool_configs=None):
-        subprocess.run(
-            ["./gradlew", "ktlintFormat", "--quiet"], check=False, capture_output=True
-        )
+    def autofix_style(
+        self,
+        files: List[str],
+        tool_configs: Optional[dict] = None,
+        log_queue: Optional[Queue] = None,
+    ):
+        try:
+            run_command(
+                ["./gradlew", "ktlintFormat", "--quiet"],
+                return_output=False,
+                log_queue=log_queue,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            if log_queue:
+                log_queue.put(f"Error running ktlintFormat: {e}")
         return {"changed_count": 0}  # Can't easily tell, assume 0 for now
 
-    def lint(self, files, disabled_rules, tool_configs=None):
+    def lint(
+        self,
+        files: List[str],
+        disabled_rules: List[str],
+        tool_configs: Optional[dict] = None,
+        log_queue: Optional[Queue] = None,
+        root_path: Optional[str] = None,
+    ):
         warnings = []
 
-        # ktlint - all issues are warnings by default
-        ktlint_result = subprocess.run(
-            ["./gradlew", "ktlintCheck"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
-        # Example: /path/to/File.kt:10:5: Unused import
-        ktlint_pattern = re.compile(r"(.+):(\d+):(\d+):\s+(.+)")
-        if ktlint_result.stdout:
-            for line in ktlint_result.stdout.splitlines():
-                match = ktlint_pattern.match(line)
-                if match:
-                    warnings.append(
-                        {
-                            "tool": "ktlint",
-                            "file": match.group(1),
-                            "line": int(match.group(2)),
-                            "message": match.group(4).strip(),
-                        }
-                    )
+        # ktlint
+        try:
+            ktlint_result = run_command(
+                ["./gradlew", "ktlintCheck"],
+                return_output=True,
+                log_queue=log_queue,
+            )
+            ktlint_pattern = re.compile(r"(.+):(\d+):(\d+):\s+(.+)")
+            if ktlint_result.stdout:
+                for line in ktlint_result.stdout.splitlines():
+                    match = ktlint_pattern.match(line)
+                    if match:
+                        file_path = match.group(1)
+                        if root_path and file_path and os.path.isabs(file_path):
+                            file_path = os.path.relpath(file_path, root_path)
+                        warnings.append(
+                            {
+                                "tool": "ktlint",
+                                "file": file_path,
+                                "line": int(match.group(2)),
+                                "message": match.group(4).strip(),
+                            }
+                        )
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            warnings.append(
+                {"tool": "ktlint", "file": "unknown", "line": 0, "message": str(e)}
+            )
 
-        # detekt - all issues are warnings
-        detekt_result = subprocess.run(
-            ["./gradlew", "detekt"], capture_output=True, text=True, encoding="utf-8"
-        )
-        # Example: /path/to/File.kt:10:5 - SomeRule - Some issue
-        detekt_pattern = re.compile(r"(.+):(\d+):(\d+)\s+-\s+(.+)\s+-\s+(.+)")
-        if detekt_result.stdout:
-            for line in detekt_result.stdout.splitlines():
-                match = detekt_pattern.match(line)
-                if match:
-                    warnings.append(
-                        {
-                            "tool": "detekt",
-                            "file": match.group(1),
-                            "line": int(match.group(2)),
-                            "message": match.group(5).strip(),
-                            "rule": match.group(4).strip(),
-                        }
-                    )
+        # detekt
+        try:
+            detekt_result = run_command(
+                ["./gradlew", "detekt"],
+                return_output=True,
+                log_queue=log_queue,
+            )
+            detekt_pattern = re.compile(r"(.+):(\d+):(\d+)\s+-\s+(.+)\s+-\s+(.+)")
+            if detekt_result.stdout:
+                for line in detekt_result.stdout.splitlines():
+                    match = detekt_pattern.match(line)
+                    if match:
+                        file_path = match.group(1)
+                        if root_path and file_path and os.path.isabs(file_path):
+                            file_path = os.path.relpath(file_path, root_path)
+                        warnings.append(
+                            {
+                                "tool": "detekt",
+                                "file": file_path,
+                                "line": int(match.group(2)),
+                                "message": match.group(5).strip(),
+                                "rule": match.group(4).strip(),
+                            }
+                        )
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            warnings.append(
+                {"tool": "detekt", "file": "unknown", "line": 0, "message": str(e)}
+            )
 
         return {"errors": [], "warnings": warnings}
 
-    def compile(self, files):
-        result = subprocess.run(
-            ["./gradlew", "assemble"], capture_output=True, text=True, encoding="utf-8"
-        )
-        if result.returncode != 0:
-            # Treat as a single error for now
+    def compile(self, files: List[str]):
+        try:
+            result = run_command(["./gradlew", "assemble"], return_output=True)
+            if result.returncode != 0:
+                return [
+                    {
+                        "tool": "gradle-assemble",
+                        "message": "Build failed. See logs for details.",
+                    }
+                ]
+        except (subprocess.TimeoutExpired, FileNotFoundError):
             return [
                 {
                     "tool": "gradle-assemble",
-                    "message": "Build failed. See logs for details.",
+                    "message": "Build timed out or gradlew not found.",
                 }
             ]
         return []
 
-    def test(self, root_path):
-        result = subprocess.run(
-            ["./gradlew", "test"], capture_output=True, text=True, encoding="utf-8"
-        )
-        if result.returncode != 0:
+    def test(self, root_path: str):
+        try:
+            result = run_command(["./gradlew", "test"], return_output=True)
+            if result.returncode != 0:
+                return [
+                    {
+                        "tool": "gradle-test",
+                        "message": "Tests failed. See logs for details.",
+                    }
+                ]
+        except (subprocess.TimeoutExpired, FileNotFoundError):
             return [
                 {
                     "tool": "gradle-test",
-                    "message": "Tests failed. See logs for details.",
+                    "message": "Tests timed out or gradlew not found.",
                 }
             ]
         return []

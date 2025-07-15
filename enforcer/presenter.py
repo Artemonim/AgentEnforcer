@@ -154,4 +154,6 @@ class Presenter:
         self._output(
             "\n* For a detailed machine-readable report, see Enforcer_last_check.log"
         )
-        self._output("* You can use tools like `grep` to analyze the log file.")
+        self._output(
+            "* You shoud use grep tool to analyze the log file. Don't read it - it's big."
+        )

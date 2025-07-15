@@ -4,6 +4,8 @@ import logging
 import os
 import shutil
 import sys
+from multiprocessing import Queue
+from typing import Optional
 
 from .plugins import load_plugins
 from .presenter import Presenter
@@ -17,7 +19,7 @@ class Enforcer:
         target_paths=None,
         config=None,
         verbose=False,
-        log_collector=None,
+        log_queue: Optional[Queue] = None,
     ):
         self.root_path = os.path.abspath(root_path)
 
@@ -28,13 +30,11 @@ class Enforcer:
 
         self.config = config or {}
         self.verbose = verbose
-        self.log_collector = log_collector
+        self.log_queue = log_queue
         self.gitignore_path = os.path.join(self.root_path, ".gitignore")
         self.gitignore = self._load_gitignore()
         self.plugins = load_plugins()
-        self.presenter = Presenter(
-            verbose=self.verbose, log_collector=self.log_collector
-        )
+        self.presenter = Presenter(verbose=self.verbose, log_queue=self.log_queue)
         self.detailed_logger, self.stats_logger = self.setup_logging()
         self.warned_missing = set()
 
@@ -129,7 +129,9 @@ class Enforcer:
             # Autofix
             self.presenter.status("Running auto-fixers...")
             fix_result = plugin.autofix_style(
-                files, self.config.get("tool_configs", {})
+                files,
+                self.config.get("tool_configs", {}),
+                log_queue=self.log_queue,
             )
             changed_count = fix_result.get("changed_count", 0)
             self.presenter.status(
@@ -145,6 +147,8 @@ class Enforcer:
                 files,
                 disabled.get(lang, []) + disabled.get("global", []),
                 self.config.get("tool_configs", {}),
+                log_queue=self.log_queue,
+                root_path=self.root_path,
             )
 
             lang_errors = lint_result.get("errors", [])

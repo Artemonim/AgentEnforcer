@@ -19,11 +19,17 @@ class Enforcer:
         target_paths=None,
         config=None,
         verbose=False,
+        timeout: Optional[int] = None,
     ):
+        self.timeout = timeout
         self.root_path = os.path.abspath(root_path)
+        # * Change CWD to ensure all relative paths and tools work correctly
+        os.chdir(self.root_path)
 
         if target_paths:
-            self.target_paths = [os.path.abspath(p) for p in target_paths]
+            self.target_paths = [
+                os.path.abspath(os.path.join(self.root_path, p)) for p in target_paths
+            ]
         else:
             self.target_paths = [self.root_path]
 
@@ -34,11 +40,11 @@ class Enforcer:
         self.plugins = load_plugins()
         self.presenter = Presenter(verbose=self.verbose)
         self.detailed_logger, self.stats_logger = self.setup_logging()
-        self.warned_missing = set()
+        self.warned_missing: set[str] = set()
 
     def _load_gitignore(self):
         if os.path.exists(self.gitignore_path):
-            from gitignore_parser import parse_gitignore
+            from gitignore_parser import parse_gitignore  # type: ignore
 
             return parse_gitignore(self.gitignore_path, self.root_path)
         return lambda x: False
@@ -66,15 +72,22 @@ class Enforcer:
 
     def scan_files(self):
         files_by_lang = {}
+        messages = []
 
         for path in self.target_paths:
+            if not os.path.exists(path):
+                messages.append(f"Path does not exist: {path}")
+                continue
             if os.path.isfile(path):
                 if self.gitignore(path):
                     continue
                 lang = self.get_language(path)
                 if lang:
                     files_by_lang.setdefault(lang, []).append(path)
+                else:
+                    messages.append(f"No supported language for file: {path}")
             elif os.path.isdir(path):
+                has_files = False
                 for root, dirs, files in os.walk(path):
                     # Prune directories based on .gitignore
                     dirs[:] = [
@@ -87,17 +100,22 @@ class Enforcer:
                         lang = self.get_language(file_path)
                         if lang:
                             files_by_lang.setdefault(lang, []).append(file_path)
+                            has_files = True
+                if not has_files:
+                    messages.append(f"No supported files in directory: {path}")
 
         # Remove duplicates if paths overlap
         for lang in files_by_lang:
             files_by_lang[lang] = sorted(list(set(files_by_lang[lang])))
 
-        return files_by_lang
+        return files_by_lang, messages
 
     def get_language(self, file_path):
         ext = os.path.splitext(file_path)[1].lower()
         for plugin in self.plugins.values():
             if ext in plugin.extensions:
+                # * Make path relative for presenter display
+                plugin.relative_path = os.path.relpath(file_path, self.root_path)
                 return plugin.language
         return None
 
@@ -106,13 +124,15 @@ class Enforcer:
         self.presenter.separator("Agent Enforcer")
         self.stats_logger.info(f"--- Check started at {timestamp} ---")
 
-        files_by_lang = self.scan_files()
+        files_by_lang, messages = self.scan_files()
+        if messages:
+            self.presenter.status("\n".join(messages), "warning")
         if not files_by_lang:
-            self.presenter.status("No files to check.", "warning")
-            return {}
-
-        all_errors = {}
-        all_warnings = {}
+            if messages:
+                self.presenter.status("\n".join(messages), "warning")
+            else:
+                self.presenter.status("No files to check.", "warning")
+            return self.presenter.get_output()
 
         total_errors_list = []
         total_warnings_list = []
@@ -132,6 +152,7 @@ class Enforcer:
             fix_result = plugin.autofix_style(
                 files,
                 self.config.get("tool_configs", {}),
+                timeout=self.timeout,
             )
             changed_count = fix_result.get("changed_count", 0)
             self.presenter.status(
@@ -149,7 +170,18 @@ class Enforcer:
                 disabled.get(lang, []) + disabled.get("global", []),
                 self.config.get("tool_configs", {}),
                 root_path=self.root_path,
+                timeout=self.timeout,
             )
+            # * Presenter needs relative paths, so we convert them here.
+            for issue in lint_result.get("errors", []) + lint_result.get(
+                "warnings", []
+            ):
+                if "file" in issue and os.path.isabs(issue["file"]):
+                    try:
+                        issue["file"] = os.path.relpath(issue["file"], self.root_path)
+                    except ValueError:
+                        # Keep absolute if it's on a different drive or other error
+                        pass
 
             lang_errors = lint_result.get("errors", [])
             lang_warnings = lint_result.get("warnings", [])
@@ -164,7 +196,7 @@ class Enforcer:
 
         self.presenter.final_summary(total_errors_list, total_warnings_list)
 
-        return {"errors": all_errors, "warnings": all_warnings}
+        return self.presenter.get_output()
 
     def log_issues(self, lang, errors, warnings):
         # Detailed log

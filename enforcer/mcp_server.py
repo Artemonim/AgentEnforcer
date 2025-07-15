@@ -1,12 +1,19 @@
 import json
+import os
+import subprocess
 import sys
+# Add time to imports
+import time
+import traceback
 from typing import List, Optional
 
 from fastmcp import FastMCP
 
-from .utils import run_command
+from .config import load_config
+from .core import Enforcer
+from .utils import get_git_modified_files, run_command
 
-mcp = FastMCP("agent_enforcer")
+mcp: FastMCP = FastMCP("agent_enforcer")
 
 
 @mcp.tool()
@@ -16,9 +23,10 @@ def run_check(
     verbose: bool = False,
     timeout_seconds: int = 0,
     debug: bool = False,
+    root: Optional[str] = None,
 ) -> str:
     """
-    Runs a quality check by calling the standalone 'enforcer-cli' tool.
+    Runs a quality check by calling the Agent Enforcer core logic directly.
 
     This tool acts as a simple wrapper, ensuring that the core logic runs in a
     separate, clean process, which is more stable, especially on Windows.
@@ -33,54 +41,86 @@ def run_check(
         disable the timeout. Default: 0.
     :param debug: If True, returns the full stdout of the tool on timeout for
         debugging. This is only useful for diagnosing hangs. Default: false.
+    :param root: Optional root directory for the check. If provided, the CLI
+        will run relative to this path.
     :return: A string containing the formatted results or an error message.
     """
+    # --- Root Path Management ---
+    # If root is not provided, default to the current working directory.
+    # This assumes the IDE/caller sets the CWD to the project root.
+    if not root:
+        root = os.getcwd()
+
+    if not os.path.isdir(root):
+        return f"Error: The provided root path is not a valid directory: {root}"
+
+    # Change CWD to the project root for the duration of the check.
+    # This is critical for git commands and relative paths to work correctly.
+    original_cwd = os.getcwd()
+    os.chdir(root)
+
+    # --- Centralized Timeout Management ---
+    timeout = timeout_seconds if timeout_seconds > 0 else None
+
     try:
-        # Using the console script entry point is more robust than `python -m`
-        # as it avoids potential sys.path conflicts if the target project
-        # also has a directory named 'enforcer'.
-        command = ["agent-enforcer-cli"]
-        timeout = timeout_seconds if timeout_seconds > 0 else None
-
-        if verbose:
-            command.append("--verbose")
-
+        # --- Determine Target Files ---
+        parsed_targets = None
         if check_git_modified_files:
-            # The CLI doesn't have a direct git modified flag, as it's a feature
-            # of the enforcer core. We can let the core handle it by not passing paths.
-            pass
+            parsed_targets = get_git_modified_files(timeout=timeout)
+            if not parsed_targets:
+                return "! No modified files to check."
         elif targets:
-            try:
-                # The CLI expects paths as separate arguments
-                parsed_targets = json.loads(targets)
-                if isinstance(parsed_targets, list):
-                    command.extend(parsed_targets)
-                else:
-                    command.append(str(parsed_targets))
-            except json.JSONDecodeError:
-                command.append(targets)
+            # * Handle "null" or empty list strings from client
+            if targets.lower() in ("null", "[]", '""'):
+                targets = None
 
-        # We don't pass a log_queue anymore, we just capture output
-        result = run_command(
-            command,
-            return_output=True,
-            check=False,  # We handle the output ourselves
-            timeout=timeout if timeout is not None else 60,
+            if targets:
+                try:
+                    parsed_targets = json.loads(targets)
+                    if not isinstance(parsed_targets, list):
+                        parsed_targets = [str(parsed_targets)]
+                except json.JSONDecodeError:
+                    return "Error: Invalid JSON format for targets."
+
+        # --- Run the Enforcer ---
+        config = load_config(root)
+        enforcer = Enforcer(
+            root_path=root,
+            target_paths=parsed_targets,
+            config=config,
+            verbose=verbose,
+            timeout=timeout,
         )
 
-        if result.returncode != 0:
-            # On error, stderr is usually more informative
-            return result.stderr or result.stdout
+        result_output = enforcer.run_checks()
+        return result_output
 
-        return result.stdout
+    except subprocess.TimeoutExpired as e:
+        cmd_str = " ".join(e.cmd) if isinstance(e.cmd, list) else str(e.cmd)
+        if debug and hasattr(e, "output") and e.output:
+            output = (
+                e.output.decode("utf-8", "ignore")
+                if isinstance(e.output, bytes)
+                else e.output
+            )
+            stderr = (
+                e.stderr.decode("utf-8", "ignore")
+                if isinstance(e.stderr, bytes)
+                else e.stderr
+            )
+            return f"Tool timed out after {timeout_seconds}s while running: {cmd_str}\n\n--- Captured Output ---\n{output}\n{stderr}"
+        else:
+            return f"Error: Tool timed out after {timeout_seconds}s while running command: {cmd_str}"
 
-    except FileNotFoundError:
-        return "Error: 'enforcer-cli' not found. Is the package installed correctly?"
     except Exception as e:
-        # Catch timeout errors from run_command and other exceptions
-        if debug and hasattr(e, "stdout") and getattr(e, "stdout", None):
-            return f"An exception occurred: {e}\n\n--- Captured Log ---\n{e.stdout}"
-        return f"An exception occurred: {e}"
+        return f"An unexpected error occurred: {e}\n{traceback.format_exc()}"
+
+    finally:
+        # Restore the original working directory
+        os.chdir(original_cwd)
+
+
+test = "test"
 
 
 def main():

@@ -6,6 +6,8 @@ from .config import load_config, save_config
 from .core import Enforcer
 from .utils import get_git_modified_files
 
+test = "test"
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -70,9 +72,26 @@ Examples:
         action="store_true",
         help="Show detailed issue list in the console.",
     )
+    parser.add_argument(
+        "--root",
+        default=None,
+        help="The root directory of the repository.",
+    )
     args = parser.parse_args()
 
-    root_path = os.getcwd()  # Assume current dir is repo root
+    # * root_path is now just the CWD, which should be set by the caller
+    # (like the MCP server) or defaults to where the user runs the script.
+    root_path = os.getcwd()
+    if args.root:
+        # If --root is provided, it overrides and we change directory.
+        # This is for consistency with how the MCP tool now works.
+        try:
+            os.chdir(args.root)
+            root_path = os.getcwd()
+        except FileNotFoundError:
+            print(f"Error: Root directory not found: {args.root}")
+            sys.exit(1)
+
     config = load_config(root_path)
 
     config_updated = False
@@ -108,6 +127,7 @@ Examples:
 
     # Determine target paths, including git-modified-only option
     if args.modified:
+        # * No longer needs root_path passed in
         modified_files = get_git_modified_files()
         if not modified_files:
             print("No modified files found in git status.")
@@ -128,7 +148,9 @@ Examples:
             else:
                 disabled.setdefault("global", []).append(rule)
     enforcer = Enforcer(root_path, target_paths, config, verbose=args.verbose)
-    enforcer.run_checks()
+    result_output = enforcer.run_checks()
+    if result_output:
+        print(result_output)
 
 
 if __name__ == "__main__":

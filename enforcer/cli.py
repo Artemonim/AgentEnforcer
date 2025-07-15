@@ -3,35 +3,20 @@ import os
 
 from .config import load_config
 from .core import Enforcer
+from .mcp_server import mcp
+
+# No longer calling the CLI, so this can be simplified.
+# The main function is now only for running the MCP server.
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Agent Enforcer: Standalone CLI")
-    parser.add_argument(
-        "paths",
-        nargs="*",
-        default=["."],
-        help="Paths to check (files or directories). Defaults to current directory.",
-    )
-    parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Show detailed issue list in the console",
-    )
-    # ? Maybe add more CLI-specific arguments in the future, like --format=json
-    args = parser.parse_args()
-
-    root_path = os.getcwd()
-    config = load_config(root_path)
-
-    enforcer = Enforcer(
-        root_path=root_path,
-        target_paths=args.paths,
-        config=config,
-        verbose=args.verbose,
-    )
-    enforcer.run_checks()
+    """
+    Starts the FastMCP server for Agent Enforcer.
+    """
+    # The --root argument is no longer needed for the CLI wrapper,
+    # as the MCP tool now handles the root path internally.
+    # The main CLI entrypoint (`main.py`) handles its own argument parsing.
+    mcp.run()
 
 
 if __name__ == "__main__":

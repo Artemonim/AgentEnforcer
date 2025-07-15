@@ -101,6 +101,7 @@ Runs a quality check on the codebase by calling the standalone `enforcer-cli`.
 -   `verbose` (Optional, `bool`, default: `false`): If `true`, provides a detailed, file-by-file list of every issue. Essential for seeing specific error messages.
 -   `timeout_seconds` (Optional, `int`, default: `0`): The timeout for the check in seconds. Set to `0` to disable the timeout entirely.
 -   `debug` (Optional, `bool`, default: `false`): If `true` and the tool _times out_, it will return the full captured output for diagnosing hangs. In a normal run, this flag has no effect.
+-   `root` (Optional, `str`): The absolute path to the repository root. If provided, overrides the default context.
 
 **Returns:**
 
@@ -112,7 +113,7 @@ Runs a quality check on the codebase by calling the standalone `enforcer-cli`.
     ```json
     {
         "tool": "run_check",
-        "params": { "verbose": true }
+        "params": { "verbose": true, "root": "G:/GitHub/MyProject" }
     }
     ```
 -   **Check a specific file and directory:**
@@ -121,7 +122,8 @@ Runs a quality check on the codebase by calling the standalone `enforcer-cli`.
         "tool": "run_check",
         "params": {
             "targets": "[\"src/main.py\", \"src/utils/\"]",
-            "verbose": true
+            "verbose": true,
+            "root": "G:/GitHub/MyProject"
         }
     }
     ```
@@ -131,7 +133,8 @@ Runs a quality check on the codebase by calling the standalone `enforcer-cli`.
         "tool": "run_check",
         "params": {
             "check_git_modified_files": true,
-            "verbose": true
+            "verbose": true,
+            "root": "G:/GitHub/MyProject"
         }
     }
     ```

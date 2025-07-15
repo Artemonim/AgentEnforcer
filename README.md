@@ -60,7 +60,7 @@ Once installed, you need to tell Cursor how to run the MCP server. We provide he
     ```json
     {
         "mcpServers": {
-            "agent-enforcer": {
+            "agent_enforcer": {
                 "command": "path/to/your/AgentEnforcer/run_mcp.bat_or_sh",
                 "args": []
             }
@@ -101,7 +101,7 @@ Runs a quality check on the codebase. It can be targeted to specific files or di
 
 -   `targets` (Optional, `list[str]`): A list of file or directory paths to check. If omitted, the entire repository is checked.
 -   `check_git_modified_files` (Optional, `bool`, default: `false`): If set to `true`, the tool will ignore the `targets` parameter and instead check only the files that have been modified, added, or renamed according to `git status`. This is extremely useful for checking only the changes made in the current session.
--   `verbose` (Optional, `bool`, default: `false`): If `true`, the output will be a detailed list of every issue. If `false`, the output will be a more concise summary grouped by file.
+-   `verbose` (Optional, `bool`, default: `false`): If `true`, the output will be a detailed list of every issue. For AI use, it is better to leave this False unless a detailed report is explicitly needed.
 
 **Returns:**
 

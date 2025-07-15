@@ -1,1 +1,1 @@
-# This file makes 'enforcer' a Python package. 
+# This file makes 'enforcer' a Python package.

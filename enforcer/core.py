@@ -1,33 +1,28 @@
-import os
-import logging
-import json
-import shutil
 import datetime
+import json
+import logging
+import os
+import shutil
 import sys
+
 from .plugins import load_plugins
 from .presenter import Presenter
+
 
 # * Core class for Agent Enforcer
 class Enforcer:
     def __init__(self, root_path, target_paths=None, config=None, verbose=False):
         self.root_path = os.path.abspath(root_path)
-        
-        # Determine if this is a full-project scan or a targeted scan.
-        # A full scan respects .gitignore, a targeted scan does not.
-        self.is_targeted_scan = bool(target_paths) and target_paths != [self.root_path]
 
-        if self.is_targeted_scan:
+        if target_paths:
             self.target_paths = [os.path.abspath(p) for p in target_paths]
         else:
             self.target_paths = [self.root_path]
 
         self.config = config or {}
         self.verbose = verbose
-        self.gitignore_path = os.path.join(self.root_path, '.gitignore')
-        
-        # Only use gitignore for full-project scans.
-        self.gitignore = self._load_gitignore() if not self.is_targeted_scan else (lambda x: False)
-        
+        self.gitignore_path = os.path.join(self.root_path, ".gitignore")
+        self.gitignore = self._load_gitignore()
         self.plugins = load_plugins()
         self.presenter = Presenter(verbose=self.verbose)
         self.detailed_logger, self.stats_logger = self.setup_logging()
@@ -35,35 +30,35 @@ class Enforcer:
 
     def _load_gitignore(self):
         if os.path.exists(self.gitignore_path):
-            try:
-                from gitignore_parser import parse_gitignore
-                return parse_gitignore(self.gitignore_path, self.root_path)
-            except Exception as e:
-                # If the parser fails for any reason, print a warning and treat as no-op
-                print(f"Warning: Could not parse .gitignore file at {self.gitignore_path}. Error: {e}")
-                return lambda x: False
+            from gitignore_parser import parse_gitignore
+
+            return parse_gitignore(self.gitignore_path, self.root_path)
         return lambda x: False
 
     def setup_logging(self):
         # Detailed log for the last check
-        detailed_logger = logging.getLogger('enforcer.detailed')
+        detailed_logger = logging.getLogger("enforcer.detailed")
         detailed_logger.setLevel(logging.DEBUG)
-        if detailed_logger.hasHandlers(): detailed_logger.handlers.clear()
-        fh_detailed = logging.FileHandler('Enforcer_last_check.log', mode='w', encoding='utf-8')
+        if detailed_logger.hasHandlers():
+            detailed_logger.handlers.clear()
+        fh_detailed = logging.FileHandler(
+            "Enforcer_last_check.log", mode="w", encoding="utf-8"
+        )
         detailed_logger.addHandler(fh_detailed)
 
         # Stats log for historical data
-        stats_logger = logging.getLogger('enforcer.stats')
+        stats_logger = logging.getLogger("enforcer.stats")
         stats_logger.setLevel(logging.INFO)
-        if stats_logger.hasHandlers(): stats_logger.handlers.clear()
-        fh_stats = logging.FileHandler('Enforcer_stats.log', mode='a', encoding='utf-8')
+        if stats_logger.hasHandlers():
+            stats_logger.handlers.clear()
+        fh_stats = logging.FileHandler("Enforcer_stats.log", mode="a", encoding="utf-8")
         stats_logger.addHandler(fh_stats)
 
         return detailed_logger, stats_logger
 
     def scan_files(self):
         files_by_lang = {}
-        
+
         for path in self.target_paths:
             if os.path.isfile(path):
                 if self.gitignore(path):
@@ -74,7 +69,9 @@ class Enforcer:
             elif os.path.isdir(path):
                 for root, dirs, files in os.walk(path):
                     # Prune directories based on .gitignore
-                    dirs[:] = [d for d in dirs if not self.gitignore(os.path.join(root, d))]
+                    dirs[:] = [
+                        d for d in dirs if not self.gitignore(os.path.join(root, d))
+                    ]
                     for file in files:
                         file_path = os.path.join(root, file)
                         if self.gitignore(file_path):
@@ -82,11 +79,11 @@ class Enforcer:
                         lang = self.get_language(file_path)
                         if lang:
                             files_by_lang.setdefault(lang, []).append(file_path)
-                            
+
         # Remove duplicates if paths overlap
         for lang in files_by_lang:
             files_by_lang[lang] = sorted(list(set(files_by_lang[lang])))
-            
+
         return files_by_lang
 
     def get_language(self, file_path):
@@ -108,37 +105,52 @@ class Enforcer:
 
         all_errors = {}
         all_warnings = {}
-        
+
         for lang, files in files_by_lang.items():
             self.presenter.separator(f"Language: {lang}")
             plugin = self.plugins.get(lang)
 
             if not plugin or not self.check_tools(plugin):
-                self.presenter.status(f"Skipping {lang} due to missing plugin or tools.", "warning")
+                self.presenter.status(
+                    f"Skipping {lang} due to missing plugin or tools.", "warning"
+                )
                 continue
 
             # Autofix
             self.presenter.status("Running auto-fixers...")
-            fix_result = plugin.autofix_style(files, self.config.get('tool_configs', {}))
+            fix_result = plugin.autofix_style(
+                files, self.config.get("tool_configs", {})
+            )
             changed_count = fix_result.get("changed_count", 0)
-            self.presenter.status(f"Formatted {changed_count} files." if changed_count > 0 else "No style changes needed.")
+            self.presenter.status(
+                f"Formatted {changed_count} files."
+                if changed_count > 0
+                else "No style changes needed."
+            )
 
             # Lint
             self.presenter.status("Running linters and static analysis...")
-            disabled = self.config.get('disabled_rules', {})
-            lint_result = plugin.lint(files, disabled.get(lang, []) + disabled.get('global', []), self.config.get('tool_configs', {}))
-            
+            disabled = self.config.get("disabled_rules", {})
+            lint_result = plugin.lint(
+                files,
+                disabled.get(lang, []) + disabled.get("global", []),
+                self.config.get("tool_configs", {}),
+            )
+
             lang_errors = lint_result.get("errors", [])
             lang_warnings = lint_result.get("warnings", [])
-            
+
             all_errors[lang] = lang_errors
             all_warnings[lang] = lang_warnings
 
             self.presenter.display_results(lang_errors, lang_warnings, lang)
             self.log_issues(lang, lang_errors, lang_warnings)
-            
+
             if lang_errors:
-                self.presenter.status(f"Stopping further checks for {lang} due to critical errors.", "error")
+                self.presenter.status(
+                    f"Stopping further checks for {lang} due to critical errors.",
+                    "error",
+                )
                 continue
 
             # Compile
@@ -151,8 +163,8 @@ class Enforcer:
                 self.presenter.status(f"Compilation failed for {lang}", "error")
                 continue
             else:
-                 self.presenter.status("Compilation successful.", "success")
-            
+                self.presenter.status("Compilation successful.", "success")
+
             # Test
             self.presenter.status("Running tests...")
             test_errors = plugin.test(self.root_path)
@@ -174,13 +186,15 @@ class Enforcer:
         # Detailed log
         for issue in errors + warnings:
             self.detailed_logger.debug(json.dumps(issue))
-            
+
         # Stats log
         stats = {}
         for issue in errors + warnings:
-            issue_type = f"[{issue.get('tool', 'unknown')}] {issue.get('rule', 'generic')}"
+            issue_type = (
+                f"[{issue.get('tool', 'unknown')}] {issue.get('rule', 'generic')}"
+            )
             stats[issue_type] = stats.get(issue_type, 0) + 1
-            
+
         for issue_type, count in sorted(stats.items()):
             self.stats_logger.info(f"{lang}: {issue_type} (x{count})")
 
@@ -191,14 +205,21 @@ class Enforcer:
             if cmd in self.warned_missing:
                 all_found = False
                 continue
-            
-            if not shutil.which(cmd) and not (cmd == 'python' and shutil.which(sys.executable)):
+
+            if not shutil.which(cmd) and not (
+                cmd == "python" and shutil.which(sys.executable)
+            ):
                 # Special check for './gradlew'
-                if cmd == './gradlew' and os.path.exists(os.path.join(self.root_path, 'gradlew')):
+                if cmd == "./gradlew" and os.path.exists(
+                    os.path.join(self.root_path, "gradlew")
+                ):
                     continue
 
                 self.warned_missing.add(cmd)
-                self.presenter.status(f'Missing required tool: {cmd} for {plugin.language}. Please install it.', 'error')
+                self.presenter.status(
+                    f"Missing required tool: {cmd} for {plugin.language}. Please install it.",
+                    "error",
+                )
                 all_found = False
 
         return all_found
@@ -208,8 +229,8 @@ class Enforcer:
 
     def get_install_recommendation(self, cmd):
         recs = {
-            'node': 'https://nodejs.org/',
-            'dotnet': 'https://dotnet.microsoft.com/download',
-            'gradlew': 'Ensure Gradle wrapper is present and executable in the repository root.',
+            "node": "https://nodejs.org/",
+            "dotnet": "https://dotnet.microsoft.com/download",
+            "gradlew": "Ensure Gradle wrapper is present and executable in the repository root.",
         }
-        return recs.get(cmd, 'Search for installation instructions online.') 
+        return recs.get(cmd, "Search for installation instructions online.")

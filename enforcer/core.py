@@ -3,7 +3,9 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import sys
+import time
 from multiprocessing import Queue
 from typing import Optional
 
@@ -19,9 +21,7 @@ class Enforcer:
         target_paths=None,
         config=None,
         verbose=False,
-        timeout: Optional[int] = None,
     ):
-        self.timeout = timeout
         self.root_path = os.path.abspath(root_path)
         # * Change CWD to ensure all relative paths and tools work correctly
         os.chdir(self.root_path)
@@ -39,7 +39,6 @@ class Enforcer:
         self.gitignore = self._load_gitignore()
         self.plugins = load_plugins()
         self.presenter = Presenter(verbose=self.verbose)
-        self.detailed_logger, self.stats_logger = self.setup_logging()
         self.warned_missing: set[str] = set()
 
     def _load_gitignore(self):
@@ -120,6 +119,7 @@ class Enforcer:
         return None
 
     def run_checks(self):
+        self.detailed_logger, self.stats_logger = self.setup_logging()
         timestamp = datetime.datetime.now().isoformat()
         self.presenter.separator("Agent Enforcer")
         self.stats_logger.info(f"--- Check started at {timestamp} ---")
@@ -152,7 +152,6 @@ class Enforcer:
             fix_result = plugin.autofix_style(
                 files,
                 self.config.get("tool_configs", {}),
-                timeout=self.timeout,
             )
             changed_count = fix_result.get("changed_count", 0)
             self.presenter.status(
@@ -170,7 +169,6 @@ class Enforcer:
                 disabled.get(lang, []) + disabled.get("global", []),
                 self.config.get("tool_configs", {}),
                 root_path=self.root_path,
-                timeout=self.timeout,
             )
             # * Presenter needs relative paths, so we convert them here.
             for issue in lint_result.get("errors", []) + lint_result.get(

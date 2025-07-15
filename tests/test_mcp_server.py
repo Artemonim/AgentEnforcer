@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 # Add the project root to the path to allow importing the enforcer modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from enforcer.mcp_server import _run_check_impl as run_check
+from enforcer.mcp_server import checker as run_check
 
 
 class TestMcpServer(unittest.TestCase):

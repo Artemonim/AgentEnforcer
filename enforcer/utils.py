@@ -5,26 +5,42 @@ from multiprocessing import Queue
 from typing import List, Optional
 
 
-def get_git_modified_files(timeout: Optional[int] = None) -> List[str]:
+def get_git_root(cwd: Optional[str] = None, timeout: Optional[int] = None) -> Optional[str]:
+    """
+    Returns the absolute path to the git repository root, or None if not in a git repo.
+    """
+    try:
+        result = run_command(
+            ["git", "rev-parse", "--show-toplevel"],
+            return_output=True,
+            check=True,
+            cwd=cwd,
+            timeout=timeout,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+def get_git_modified_files(cwd: Optional[str] = None, timeout: Optional[int] = None) -> List[str]:
     """
     Returns a list of files modified in the current git repository.
     """
     try:
-        # Ensure git is installed and we are in a repo
-        subprocess.run(
+        run_command(
             ["git", "rev-parse", "--is-inside-work-tree"],
             check=True,
-            capture_output=True,
-            timeout=timeout,  # Pass dynamic timeout
+            return_output=True,
+            cwd=cwd,
+            timeout=timeout,
         )
 
         # Get the list of modified files
-        result = subprocess.run(
+        result = run_command(
             ["git", "status", "--porcelain"],
             check=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout,  # Pass dynamic timeout
+            return_output=True,
+            cwd=cwd,
+            timeout=timeout,
         )
 
         modified_files = []
@@ -41,7 +57,7 @@ def get_git_modified_files(timeout: Optional[int] = None) -> List[str]:
         return modified_files
     except subprocess.CalledProcessError as e:
         # If the error indicates it's not a git repo, that's a valid state.
-        if "not a git repository" in e.stderr.lower():
+        if "not a git repository" in (e.stderr or "").lower():
             print("Warning: Not a git repository.")
             return []
         # Otherwise, it's an unexpected error that should be reported.

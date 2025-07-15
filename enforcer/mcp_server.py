@@ -7,12 +7,12 @@ from typing import Optional
 
 from fastmcp import FastMCP
 
-from .utils import get_git_modified_files
+from .utils import get_git_modified_files, get_git_root
 
 mcp: FastMCP = FastMCP("agent_enforcer")
 
 
-def _run_check_impl(
+def checker(
     targets: Optional[str] = None,
     check_git_modified_files: bool = False,
     verbose: bool = False,
@@ -27,8 +27,11 @@ def _run_check_impl(
     """
     # --- Root Path Management ---
     if not root:
-        root = os.getcwd()
-
+        git_root = get_git_root(timeout=5)
+        if git_root and os.path.isdir(git_root):
+            root = git_root
+        else:
+            return "Error: Could not auto-detect repository root (not inside a git repository?). Please provide the 'root' parameter with the absolute path to the repository."
     if not os.path.isdir(root):
         return f"Error: The provided root path is not a valid directory: {root}"
 
@@ -46,7 +49,7 @@ def _run_check_impl(
             # Pass timeout to git call as a safeguard, though the global
             # timeout on the main process is the primary controller.
             git_timeout = 15 if not timeout or timeout > 15 else timeout
-            parsed_targets = get_git_modified_files(timeout=git_timeout)
+            parsed_targets = get_git_modified_files(cwd=root, timeout=git_timeout)
             if not parsed_targets:
                 return "! No modified files to check."
         elif targets:
@@ -108,7 +111,7 @@ def _run_check_impl(
         )
 
 
-run_check = mcp.tool()(_run_check_impl)
+run_check = mcp.tool()(checker)
 
 
 def main():

@@ -78,7 +78,7 @@ Once installed, you need to tell Cursor how to run the MCP server.
 5.  Save the `mcp.json` file.
 6.  **Restart Cursor** to ensure it picks up the new configuration or switch the `agent_enforcer` switch in **MCP Tools** back and forth.
 
-After configuration, the `run_check` tool will be available to the AI Agent in Cursor.
+After configuration, the `checker` tool will be available to the AI Agent in Cursor.
 
 ### Troubleshooting
 
@@ -88,9 +88,9 @@ After configuration, the `run_check` tool will be available to the AI Agent in C
 
 ## Using the MCP Tool
 
-The server exposes one primary tool: `run_check`.
+The server exposes one primary tool: `checker`.
 
-#### Tool: `run_check`
+#### Tool: `checker`
 
 Runs a quality check on the codebase by calling the standalone `enforcer-cli`.
 
@@ -101,7 +101,7 @@ Runs a quality check on the codebase by calling the standalone `enforcer-cli`.
 -   `verbose` (Optional, `bool`, default: `false`): If `true`, provides a detailed, file-by-file list of every issue. Essential for seeing specific error messages.
 -   `timeout_seconds` (Optional, `int`, default: `0`): The timeout for the check in seconds. Set to `0` to disable the timeout entirely.
 -   `debug` (Optional, `bool`, default: `false`): If `true` and the tool _times out_, it will return the full captured output for diagnosing hangs. In a normal run, this flag has no effect.
--   `root` (Optional, `str`): The absolute path to the repository root. If provided, overrides the default context.
+-   `root` (Optional, `str`): The absolute path to the repository root. If omitted, attempts to auto-detect via git. If detection fails (e.g., not in a git repo), an error is returned requiring the parameter.
 
 **Returns:**
 
@@ -112,14 +112,14 @@ Runs a quality check on the codebase by calling the standalone `enforcer-cli`.
 -   **Check the whole project with details:**
     ```json
     {
-        "tool": "run_check",
+        "tool": "checker",
         "params": { "verbose": true, "root": "G:/GitHub/MyProject" }
     }
     ```
 -   **Check a specific file and directory:**
     ```json
     {
-        "tool": "run_check",
+        "tool": "checker",
         "params": {
             "targets": "[\"src/main.py\", \"src/utils/\"]",
             "verbose": true,
@@ -130,7 +130,7 @@ Runs a quality check on the codebase by calling the standalone `enforcer-cli`.
 -   **Check only the files I've changed:**
     ```json
     {
-        "tool": "run_check",
+        "tool": "checker",
         "params": {
             "check_git_modified_files": true,
             "verbose": true,

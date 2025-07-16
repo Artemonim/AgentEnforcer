@@ -5,7 +5,9 @@ from multiprocessing import Queue
 from typing import List, Optional
 
 
-def get_git_root(cwd: Optional[str] = None, timeout: Optional[int] = None) -> Optional[str]:
+def get_git_root(
+    cwd: Optional[str] = None, timeout: Optional[int] = None
+) -> Optional[str]:
     """
     Returns the absolute path to the git repository root, or None if not in a git repo.
     """
@@ -18,10 +20,17 @@ def get_git_root(cwd: Optional[str] = None, timeout: Optional[int] = None) -> Op
             timeout=timeout,
         )
         return result.stdout.strip()
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+    ):
         return None
 
-def get_git_modified_files(cwd: Optional[str] = None, timeout: Optional[int] = None) -> List[str]:
+
+def get_git_modified_files(
+    cwd: Optional[str] = None, timeout: Optional[int] = None
+) -> List[str]:
     """
     Returns a list of files modified in the current git repository.
     """

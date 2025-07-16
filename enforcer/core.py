@@ -196,6 +196,66 @@ class Enforcer:
 
         return self.presenter.get_output()
 
+    def run_checks_structured(self):
+        self.detailed_logger, self.stats_logger = self.setup_logging()
+        timestamp = datetime.datetime.now().isoformat()
+        self.stats_logger.info(f"--- Check started at {timestamp} ---")
+
+        files_by_lang, messages = self.scan_files()
+        if not files_by_lang:
+            return {
+                "errors": [],
+                "warnings": [],
+                "messages": messages or ["No files to check."],
+            }
+
+        total_errors_list = []
+        total_warnings_list = []
+
+        for lang, files in files_by_lang.items():
+            plugin = self.plugins.get(lang)
+
+            if not plugin or not self.check_tools(plugin):
+                continue
+
+            # Autofix
+            fix_result = plugin.autofix_style(
+                files,
+                self.config.get("tool_configs", {}),
+            )
+
+            # Lint
+            disabled = self.config.get("disabled_rules", {})
+            lint_result = plugin.lint(
+                files,
+                disabled.get(lang, []) + disabled.get("global", []),
+                self.config.get("tool_configs", {}),
+                root_path=self.root_path,
+            )
+
+            lang_errors = lint_result.get("errors", [])
+            lang_warnings = lint_result.get("warnings", [])
+
+            # Convert absolute to relative paths
+            for issue in lang_errors + lang_warnings:
+                if "file" in issue and os.path.isabs(issue["file"]):
+                    try:
+                        issue["file"] = os.path.relpath(issue["file"], self.root_path)
+                    except ValueError:
+                        pass
+
+            total_errors_list.extend(lang_errors)
+            total_warnings_list.extend(lang_warnings)
+
+            self.log_issues(lang, lang_errors, lang_warnings)
+
+        return {
+            "errors": total_errors_list,
+            "warnings": total_warnings_list,
+            "messages": messages,
+            "formatted_files": fix_result.get("changed_count", 0),
+        }
+
     def log_issues(self, lang, errors, warnings):
         # Detailed log
         for issue in errors + warnings:

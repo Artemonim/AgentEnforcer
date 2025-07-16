@@ -1,13 +1,15 @@
-import json
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+import platform
 import os
-import sys
+import pytest
 import unittest
-from unittest.mock import MagicMock, patch
+from enforcer.mcp_server import AgentEnforcerMCP, check_code
 
-# Add the project root to the path to allow importing the enforcer modules
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from enforcer.mcp_server import checker as run_check
+@pytest.fixture
+def mcp_server():
+    return AgentEnforcerMCP()
 
 
 class TestMcpServer(unittest.TestCase):
@@ -30,7 +32,7 @@ class TestMcpServer(unittest.TestCase):
                 mock_proc.stderr = ""
                 mock_run.return_value = mock_proc
 
-                run_check(
+                check_code(
                     targets=targets_str,
                     check_git_modified_files=params["check_git_modified_files"],
                     verbose=params["verbose"],

@@ -1,5 +1,9 @@
 import json
 import os
+import platform
+import re
+import urllib.parse
+import urllib.request
 from typing import Any, List, Optional
 
 import anyio
@@ -17,6 +21,25 @@ from pydantic import AnyUrl, Field
 from .config import load_config
 from .core import Enforcer
 from .utils import get_git_modified_files, get_git_root
+
+
+def _uri_to_path(uri: str) -> str:
+    """
+    Converts a file URI to a platform-native path, correcting for Windows path issues.
+    """
+    if not uri.startswith("file://"):
+        return uri
+
+    parsed_uri = urllib.parse.urlparse(uri)
+    path = urllib.parse.unquote(parsed_uri.path)
+
+    if platform.system() == "Windows":
+        # On Windows, for a URI like 'file:///G:/foo/bar', the path becomes '/G:/foo/bar'.
+        # We need to strip the leading slash to get a valid path 'G:/foo/bar'.
+        if re.match(r"/\w:[/\\]", path):
+            path = path[1:]
+    
+    return os.path.normpath(path)
 
 
 class FilePathResource(Resource):
@@ -62,7 +85,7 @@ async def check_code(
             try:
                 roots = await ctx.list_roots()
                 if roots:
-                    root = str(roots[0].uri).removeprefix("file://")
+                    root = _uri_to_path(str(roots[0].uri))
             except Exception:
                 # Fallback if client doesn't support roots/list
                 pass
@@ -184,7 +207,7 @@ class AgentEnforcerMCP(FastMCP[dict]):
             return []
 
         # Assuming single root for now
-        root_path = str(roots[0].uri).removeprefix("file://")
+        root_path = _uri_to_path(str(roots[0].uri))
         if not os.path.isdir(root_path):
             return []
 

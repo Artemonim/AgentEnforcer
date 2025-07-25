@@ -101,3 +101,9 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ] 
+
+[tool.coverage.paths]
+source = [
+    "enforcer",
+    "**/site-packages/enforcer",
+] 

@@ -76,10 +76,49 @@ agent-enforcer src  # Check directory
 
 ## Configuration
 
--   The tool creates `.enforcer/config.json` in your project root upon first run.
--   **Debug Mode**: To enable the `debug` parameter for the `checker` tool, edit this file and set `"debug_mode_enabled": true`. This is useful for tool development.
--   **Rule Management**: You can disable specific linting rules by adding them to the `disabled_rules` section.
--   **Tool-Specific Configs**: For more advanced configurations, you can add tool-specific files like `.enforcer/flake8.json`.
+The tool creates `.enforcer/config.json` in your project root upon first run. Configuration is loaded dynamically with each check, so changes take effect immediately without restarting the MCP server.
+
+### Available Configuration Options
+
+-   **`debug_mode_enabled`** (boolean, default: `false`): When enabled, adds the `debug` parameter to the `checker` tool, providing more verbose logging. Useful for tool development and troubleshooting.
+
+-   **`check_fixtures`** (boolean, default: `false`): When enabled, includes test fixture files in code quality checks. By default, fixtures are excluded since they often contain intentionally broken code for testing purposes.
+
+-   **`check_submodules`** (boolean, default: `false`): When enabled, includes git submodule directories in code quality checks. By default, submodules are excluded since they are external dependencies with their own quality standards.
+
+-   **`disabled_rules`** (object): Disable specific linting rules by language or globally. Example:
+
+    ```json
+    {
+        "disabled_rules": {
+            "python": ["E501", "W503"],
+            "global": ["some-rule"]
+        }
+    }
+    ```
+
+-   **`custom_fixture_patterns`** (object): Define custom patterns for fixture detection:
+    ```json
+    {
+        "custom_fixture_patterns": {
+            "directories": ["my_fixtures", "test_data"],
+            "files": ["sample", "mock_data"]
+        }
+    }
+    ```
+
+### Standard Fixture Patterns
+
+Agent Enforcer automatically excludes common fixture patterns across different languages:
+
+-   **Python**: `testdata/`, `test_fixtures/`, `fixtures/`
+-   **JavaScript/TypeScript**: `__fixtures__/`, `mocks/`
+-   **Kotlin**: `testdata/`, `fixtures/`
+-   **C#**: `TestData/`, `Fixtures/`, `Resources/`
+
+### Tool-Specific Configurations
+
+For more advanced configurations, you can add tool-specific files like `.enforcer/flake8.json`, `.enforcer/mypy.json`, etc.
 
 ## MCP-Tool Integration (Cursor IDE)
 

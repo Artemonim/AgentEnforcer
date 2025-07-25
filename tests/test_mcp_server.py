@@ -2,7 +2,7 @@ import asyncio
 import os
 import platform
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -209,7 +209,7 @@ async def test_list_resources():
         resources = await mcp._list_resources()
 
         assert len(resources) == 1
-        MockEnforcer.assert_called_with(root_path="/root")
+        MockEnforcer.assert_called_with(root_path="/root", config=ANY)
 
 
 def test_init():

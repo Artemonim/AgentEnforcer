@@ -42,6 +42,88 @@ def _uri_to_path(uri: str) -> str:
     return os.path.normpath(path)
 
 
+# * Dynamic wrapper that reads config at runtime to determine debug mode
+async def check_code_dynamic(
+    resource_uris: Optional[List[str]] = None,
+    check_git_modified_files: bool = False,
+    verbose: bool = False,
+    timeout_seconds: int = 0,
+    debug: bool = False,
+    root: Optional[str] = None,
+) -> dict:
+    """Runs a quality check on the specified files with dynamic config loading.
+
+    Args:
+        resource_uris (Optional[List[str]], optional): A list of file URIs to check. If omitted, the entire repository is checked. Ex: ["file:///G:/path/to/file.py"]. Defaults to None.
+        check_git_modified_files (bool, optional): If true, ignores resource_uris and checks only the files modified in git. Defaults to False.
+        verbose (bool, optional): If true, provides a detailed, file-by-file list of every issue. Essential for seeing specific error messages. Defaults to False.
+        timeout_seconds (int, optional): The timeout for the check in seconds. Set to 0 to disable the timeout entirely. Defaults to 0.
+        debug (bool, optional): If true, enables debug mode for more verbose logs. Defaults to False.
+        root (Optional[str], optional): The absolute path to the repository root. If omitted, attempts to auto-detect via git. If detection fails (e.g., not in a git repo), an error is returned requiring the parameter. Defaults to None.
+
+    Returns:
+        dict: A dictionary containing the results of the check, with keys like 'errors', 'warnings', and 'messages'.
+
+    Example Usage:
+        - Check the whole project with details:
+          {"verbose": true, "root": "G:/GitHub/MyProject"}
+
+        - Check a specific file and directory:
+          {"resource_uris": ["file:///G:/GitHub/MyProject/src/main.py"], "verbose": true}
+
+        - Check only the files I've changed:
+          {"check_git_modified_files": true, "verbose": true}
+    """
+    try:
+        # Determine root first to load config
+        if not root:
+            ctx = get_context()
+            try:
+                roots = await ctx.list_roots()
+                if roots:
+                    root = _uri_to_path(str(roots[0].uri))
+            except Exception:
+                pass
+
+            if not root:
+                git_root = get_git_root(timeout=5)
+                if git_root and os.path.isdir(git_root):
+                    root = git_root
+                else:
+                    return {
+                        "error": "Could not auto-detect repository root. Please provide the 'root' parameter."
+                    }
+
+        # Load config to determine if debug mode is enabled
+        config = load_config(root)
+        debug_mode = config.get("debug_mode_enabled", False)
+
+        # Call appropriate function based on debug mode
+        if debug_mode:
+            return await check_code(
+                resource_uris=resource_uris,
+                check_git_modified_files=check_git_modified_files,
+                verbose=verbose,
+                timeout_seconds=timeout_seconds,
+                debug=debug,  # Pass through the debug parameter
+                root=root,
+            )
+        else:
+            return await check_code_no_debug(
+                resource_uris=resource_uris,
+                check_git_modified_files=check_git_modified_files,
+                verbose=verbose,
+                timeout_seconds=timeout_seconds,
+                root=root,
+            )
+    except Exception as e:
+        import traceback
+
+        return {
+            "error": f"An unexpected error occurred in check_code_dynamic: {e}\n{traceback.format_exc()}"
+        }
+
+
 # * Wrapper function without debug for production use
 async def check_code_no_debug(
     resource_uris: Optional[List[str]] = None,
@@ -187,29 +269,14 @@ class AgentEnforcerMCP(FastMCP[dict]):
             instructions="Agent Enforcer is a code quality checker that can lint and autofix code in multiple languages.",
         )
 
-        # * Conditionally add checker based on config file
-        debug_mode = False
-        try:
-            # ? We need the root to load config, but can't get it from context in sync __init__.
-            # ? Using git root detection as a reliable fallback.
-            root = get_git_root()
-            if root:
-                config = load_config(root)
-                debug_mode = config.get("debug_mode_enabled", False)
-        except Exception:
-            # ! If git root or config fails, default to non-debug mode.
-            pass  # Silently fail, assuming debug is off.
-
-        if debug_mode:
-            self.add_tool(FunctionTool.from_function(check_code, name="checker"))
-        else:
-            self.add_tool(
-                FunctionTool.from_function(
-                    check_code_no_debug,
-                    name="checker",
-                    description="Runs comprehensive code quality checks using multiple linters (black, isort, flake8, mypy, pyright) and returns structured results with errors, warnings, and suggestions for improvement.",
-                )
+        # * Always add the dynamic checker that reads config at runtime
+        self.add_tool(
+            FunctionTool.from_function(
+                check_code_dynamic,
+                name="checker",
+                description="Runs comprehensive code quality checks using multiple linters (black, isort, flake8, mypy, pyright) and returns structured results with errors, warnings, and suggestions for improvement.",
             )
+        )
 
         # Add prompts
         def fix_this_file(file: str, issues: str) -> list[PromptMessage]:
@@ -276,7 +343,8 @@ class AgentEnforcerMCP(FastMCP[dict]):
         if not os.path.isdir(root_path):
             return []
 
-        enforcer = Enforcer(root_path=root_path)
+        config = load_config(root_path)
+        enforcer = Enforcer(root_path=root_path, config=config)
         files_by_lang, _ = enforcer.scan_files()
 
         for lang, files in files_by_lang.items():

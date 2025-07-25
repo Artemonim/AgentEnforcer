@@ -1,4 +1,10 @@
 {
     "disabled_rules": {},
-    "debug_mode_enabled": false
+    "debug_mode_enabled": true,
+    "check_fixtures": false,
+    "check_submodules": false,
+    "custom_fixture_patterns": {
+        "directories": [],
+        "files": []
+    }
 }

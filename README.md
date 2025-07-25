@@ -1,5 +1,21 @@
 # Agent Enforcer
 
+## Development Setup
+
+### Git Submodules
+
+This project includes the Model Context Protocol (MCP) specification as a git submodule:
+
+```bash
+# Clone the repository with submodules
+git clone --recursive https://github.com/your-username/AgentEnforcer.git
+
+# Or if already cloned, initialize and update submodules
+git submodule update --init --recursive
+```
+
+The MCP specification is located in `Doc/modelcontextprotocol/` and contains the official protocol documentation and examples.
+
 ## Installation Options
 
 ### Option 1: Global Installation (Recommended for MCP)

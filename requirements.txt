@@ -6,5 +6,6 @@ mypy
 pyright
 pytest
 pytest-asyncio
+pytest-cov
 # Development dependencies if needed 
 bump-my-version

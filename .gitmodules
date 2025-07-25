@@ -1,0 +1,4 @@
+[submodule "Doc/modelcontextprotocol"]
+	path = Doc/modelcontextprotocol
+	url = https://github.com/modelcontextprotocol/modelcontextprotocol
+	branch = main

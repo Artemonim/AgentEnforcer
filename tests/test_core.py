@@ -64,7 +64,11 @@ def test_run_checks_structured(tmp_path):
     with patch.object(enforcer, "scan_files", return_value=({}, ["No files"])):
         result = enforcer.run_checks_structured()
         assert result["messages"] == ["No files"]
-    with patch.object(enforcer, "scan_files", return_value= ({"python": [str(tmp_path / "test.py")]}, [])):
+    with patch.object(
+        enforcer,
+        "scan_files",
+        return_value=({"python": [str(tmp_path / "test.py")]}, []),
+    ):
         mock_plugin = MagicMock()
         mock_plugin.autofix_style.return_value = {"changed_count": 0}
         mock_plugin.lint.return_value = {"errors": [], "warnings": []}
@@ -90,10 +94,15 @@ def test_run_checks_structured_with_issues(tmp_path):
         mock_plugin = MagicMock()
         mock_plugin.language = "python"
         mock_plugin.autofix_style.return_value = {"changed_count": 1}
-        mock_plugin.lint.return_value = {"errors": [{"file": "f.py", "message": "err"}], "warnings": [{"file": "f.py", "message": "warn"}]}
+        mock_plugin.lint.return_value = {
+            "errors": [{"file": "f.py", "message": "err"}],
+            "warnings": [{"file": "f.py", "message": "warn"}],
+        }
         mock_load.return_value = {"python": mock_plugin}
         enforcer = Enforcer(str(tmp_path))
-        with patch.object(enforcer, "scan_files", return_value= ({"python": ["file.py"]}, [])):
+        with patch.object(
+            enforcer, "scan_files", return_value=({"python": ["file.py"]}, [])
+        ):
             with patch.object(enforcer, "check_tools", return_value=True):
                 result = enforcer.run_checks_structured()
                 assert len(result["errors"]) == 1

@@ -6,8 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from enforcer.mcp_server import AgentEnforcerMCP, check_code
-from enforcer.mcp_server import _uri_to_path
+from enforcer.mcp_server import AgentEnforcerMCP, _uri_to_path, check_code
 
 test_data = {
     "test_01_basic_no_targets": {
@@ -159,9 +158,11 @@ test_data = {
     },
 }
 
+
 @pytest.fixture
 def mcp_server():
     return AgentEnforcerMCP()
+
 
 @pytest.mark.parametrize("params", test_data.values(), ids=test_data.keys())
 def test_check_code_scenarios(params):
@@ -169,14 +170,16 @@ def test_check_code_scenarios(params):
     resource_uris = params.get("resource_uris")
     with patch("enforcer.mcp_server.get_git_modified_files") as mock_git_files:
         mock_git_files.return_value = ["modified_file.py"]
-        result = asyncio.run(check_code(
-            resource_uris=resource_uris,
-            check_git_modified_files=params["check_git_modified_files"],
-            verbose=params["verbose"],
-            timeout_seconds=params["timeout_seconds"],
-            debug=params["debug"],
-            root=params.get("root", os.getcwd()),
-        ))
+        result = asyncio.run(
+            check_code(
+                resource_uris=resource_uris,
+                check_git_modified_files=params["check_git_modified_files"],
+                verbose=params["verbose"],
+                timeout_seconds=params["timeout_seconds"],
+                debug=params["debug"],
+                root=params.get("root", os.getcwd()),
+            )
+        )
         if params["check_git_modified_files"]:
             mock_git_files.assert_called_once()
         assert isinstance(result, dict)
@@ -185,10 +188,11 @@ def test_check_code_scenarios(params):
 @pytest.mark.asyncio
 async def test_list_resources():
     mcp = AgentEnforcerMCP()
-    with patch("enforcer.mcp_server.get_context") as mock_get_context, \
-         patch("enforcer.mcp_server._uri_to_path", return_value="/root"), \
-         patch("enforcer.mcp_server.Enforcer") as MockEnforcer, \
-         patch("os.path.isdir", return_value=True):
+    with patch("enforcer.mcp_server.get_context") as mock_get_context, patch(
+        "enforcer.mcp_server._uri_to_path", return_value="/root"
+    ), patch("enforcer.mcp_server.Enforcer") as MockEnforcer, patch(
+        "os.path.isdir", return_value=True
+    ):
 
         mock_ctx = MagicMock()
         mock_root = MagicMock()
@@ -197,7 +201,10 @@ async def test_list_resources():
         mock_get_context.return_value = mock_ctx
 
         mock_enforcer_instance = MockEnforcer.return_value
-        mock_enforcer_instance.scan_files.return_value = ({"python": ["/root/file.py"]}, [])
+        mock_enforcer_instance.scan_files.return_value = (
+            {"python": ["/root/file.py"]},
+            [],
+        )
 
         resources = await mcp._list_resources()
 
@@ -216,28 +223,34 @@ def test_uri_to_path_windows():
         assert _uri_to_path("file:///C:/path/with%20space") == "C:\\path\\with space"
         assert _uri_to_path("/local/path") == "/local/path"  # Non-URI, unchanged
 
+
 def test_uri_to_path_non_windows():
     with patch("platform.system", return_value="Linux"):
         assert _uri_to_path("file:///home/user/file") == "\\home\\user\\file"
         assert _uri_to_path("file:///path/with%20space") == "\\path\\with space"
 
+
 @pytest.mark.asyncio
 async def test_check_code_no_root_fallback():
-    with patch("enforcer.mcp_server.get_context") as mock_get_context, \
-         patch("enforcer.mcp_server.get_git_root", return_value="/fake_root"), \
-         patch("enforcer.mcp_server.os.path.isdir", return_value=True), \
-         patch("enforcer.mcp_server.load_config", return_value={}), \
-         patch("enforcer.mcp_server.Enforcer") as mock_enforcer:
+    with patch("enforcer.mcp_server.get_context") as mock_get_context, patch(
+        "enforcer.mcp_server.get_git_root", return_value="/fake_root"
+    ), patch("enforcer.mcp_server.os.path.isdir", return_value=True), patch(
+        "enforcer.mcp_server.load_config", return_value={}
+    ), patch(
+        "enforcer.mcp_server.Enforcer"
+    ) as mock_enforcer:
         mock_ctx = AsyncMock()
         mock_ctx.list_roots.return_value = []
         mock_get_context.return_value = mock_ctx
         result = await check_code()
         assert "root" not in result  # Assuming it proceeds with git root
 
+
 @pytest.mark.asyncio
 async def test_check_code_root_detection_error():
-    with patch("enforcer.mcp_server.get_context") as mock_get_context, \
-         patch("enforcer.mcp_server.get_git_root", return_value=None):
+    with patch("enforcer.mcp_server.get_context") as mock_get_context, patch(
+        "enforcer.mcp_server.get_git_root", return_value=None
+    ):
         mock_ctx = AsyncMock()
         mock_ctx.list_roots.side_effect = Exception("client error")
         mock_get_context.return_value = mock_ctx

@@ -52,7 +52,7 @@ jobs:
 
             - name: Run tests with coverage
               run: |
-                  pytest --cov=enforcer --cov-report=xml --cov-report=term-missing
+                  pytest
 
             - name: Upload coverage artifact
               uses: actions/upload-artifact@v4

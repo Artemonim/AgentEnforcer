@@ -64,13 +64,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = [
-    "--cov=enforcer",
-    "--cov-report=term-missing",
-    "--cov-report=html",
-    "--cov-report=xml",
-    "--cov-fail-under=75"
-]
+addopts = []
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]

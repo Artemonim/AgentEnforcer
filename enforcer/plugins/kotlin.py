@@ -35,6 +35,7 @@ class Plugin:
         tool_configs: Optional[dict] = None,
         root_path: Optional[str] = None,
     ):
+        errors = []
         warnings = []
 
         # ktlint
@@ -43,24 +44,26 @@ class Plugin:
                 ["./gradlew", "ktlintCheck"],
                 return_output=True,
             )
-            ktlint_pattern = re.compile(r"(.+):(\d+):(\d+):\s+(.+)")
             if ktlint_result.stdout:
                 for line in ktlint_result.stdout.splitlines():
-                    match = ktlint_pattern.match(line)
-                    if match:
-                        file_path = match.group(1)
+                    parts = line.split(":")
+                    if len(parts) >= 4:
+                        file_path = ":".join(parts[:-3])
+                        line_num = parts[-3]
+                        col = parts[-2]
+                        msg = parts[-1].strip()
                         if root_path and file_path and os.path.isabs(file_path):
                             file_path = os.path.relpath(file_path, root_path)
-                        warnings.append(
+                        errors.append(
                             {
                                 "tool": "ktlint",
                                 "file": file_path,
-                                "line": int(match.group(2)),
-                                "message": match.group(4).strip(),
+                                "line": int(line_num),
+                                "message": msg,
                             }
                         )
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            warnings.append(
+            errors.append(
                 {
                     "tool": "ktlint",
                     "file": "unknown",
@@ -75,25 +78,27 @@ class Plugin:
                 ["./gradlew", "detekt"],
                 return_output=True,
             )
-            detekt_pattern = re.compile(r"(.+):(\d+):(\d+)\s+-\s+(.+)\s+-\s+(.+)")
             if detekt_result.stdout:
                 for line in detekt_result.stdout.splitlines():
-                    match = detekt_pattern.match(line)
-                    if match:
-                        file_path = match.group(1)
-                        if root_path and file_path and os.path.isabs(file_path):
-                            file_path = os.path.relpath(file_path, root_path)
-                        warnings.append(
-                            {
-                                "tool": "detekt",
-                                "file": file_path,
-                                "line": int(match.group(2)),
-                                "message": match.group(5).strip(),
-                                "rule": match.group(4).strip(),
-                            }
-                        )
+                    if " - " in line:
+                        loc_part, rest = line.split(" - ", 1)
+                        loc_parts = loc_part.rsplit(":", 2)
+                        if len(loc_parts) == 3:
+                            file_path, line_num, col = loc_parts
+                            if root_path and file_path and os.path.isabs(file_path):
+                                file_path = os.path.relpath(file_path, root_path)
+                            rule, message = rest.split(" - ", 1)
+                            errors.append(
+                                {
+                                    "tool": "detekt",
+                                    "file": file_path,
+                                    "line": int(line_num),
+                                    "message": message.strip(),
+                                    "rule": rule.strip(),
+                                }
+                            )
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            warnings.append(
+            errors.append(
                 {
                     "tool": "detekt",
                     "file": "unknown",
@@ -102,7 +107,7 @@ class Plugin:
                 }
             )
 
-        return {"errors": [], "warnings": warnings}
+        return {"errors": errors, "warnings": warnings}
 
     def compile(self, files: List[str]):
         try:

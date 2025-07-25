@@ -133,10 +133,8 @@ Examples:
             print("No modified files found in git status.")
             sys.exit(0)
         target_paths = modified_files
-    elif args.paths is not None:
-        target_paths = args.paths
     else:
-        target_paths = ["."]
+        target_paths = args.paths or ["."]
 
     if args.ignore:
         ignored = args.ignore.split(",")

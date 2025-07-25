@@ -195,16 +195,15 @@ The server also provides three prompts for structured AI interactions:
 -   **Local install**: If you want to explicitly set Agent Enforcer as dev dependency.
 -   **Standalone**: It is good for isolated installation in a system without polluting global Python.
 
-**Рекомендации для конечных пользователей:**
+**Recommendations for end users:**
 
--   Используйте **глобальную установку** для MCP - это самый простой и надежный способ
--   **Не устанавливайте как dev dependency в каждый workspace** - это создаст дублирование и усложнит управление версиями
--   Для разработки используйте `pip install -e .` в виртуальной среде проекта
+-   Use **global installation** for MCP - this is the easiest and most reliable way
+-   Use `pip install -e` for development and debugging of Enforcer.
 
 ### Troubleshooting
 
--   **Command not found**: Убедитесь, что Python Scripts директория добавлена в PATH для глобальной установки
--   **Permission errors**: На macOS/Linux используйте `chmod +x` для скриптов
--   **Virtual environment issues**: Активируйте виртуальную среду перед запуском
+-   **Command not found**: Make sure that the Python Scripts directory is added to the PATH for global installation
+-   **Permission errors**: On macOS/Linux, use `chmod +x` for scripts
+-   **Virtual environment issues**: Activate the virtual environment before launching
 -   If the tool doesn't appear in Cursor, check the logs (View > Output > Cursor MCP).
 -   **Path issues**: Use forward slashes (`/`) in paths, even on Windows

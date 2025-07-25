@@ -1,0 +1,121 @@
+name: CI
+
+on:
+    # Run on pull requests into dev or master.
+    pull_request:
+        branches: [master, dev]
+    # Push to dev also triggers tests to ensure dev branch is always stable
+    push:
+        branches: [dev]
+
+jobs:
+    test:
+        # * Runs unit-test matrix:
+        #   - On pull_request (to dev or master)
+        #   - On push to dev
+        if: |
+            github.event_name == 'pull_request' ||
+            (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+        name: Test on Python ${{ matrix.python-version }}
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                python-version: ["3.10", "3.11", "3.12", "3.13"]
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              # For pull_request we check out the PR commit; for push we stay on the pushed ref (dev).
+              with:
+                  ref: ${{ github.event.pull_request.head.sha }}
+
+            - name: Set up Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v5
+              with:
+                  python-version: ${{ matrix.python-version }}
+
+            - name: Cache pip
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/pip
+                  key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+                  restore-keys: |
+                      ${{ runner.os }}-pip-
+
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install .[dev]
+
+            - name: CLI smoke test
+              run: |
+                  agent-enforcer --version
+
+            - name: Run tests with coverage
+              run: |
+                  pytest --cov=enforcer --cov-report=xml --cov-report=term-missing
+
+            - name: Upload coverage artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-${{ matrix.python-version }}
+                  path: coverage.xml
+
+    report:
+        # * Only for master: either in PR to master (so reviewers see comment) or after merge push to master.
+        if: github.event_name == 'pull_request' && github.base_ref == 'master'
+        name: Report Coverage
+        runs-on: ubuntu-latest
+        needs: test
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Download all coverage artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: coverage-artifacts
+                  pattern: coverage-*
+                  merge-multiple: true
+
+            - name: Upload coverage to Codecov
+              uses: codecov/codecov-action@v5
+              with:
+                  token: ${{ secrets.CODECOV_TOKEN }}
+                  directory: ./coverage-artifacts/
+                  fail_ci_if_error: false
+
+    check-version:
+        # * Only on PRs into dev: prevent accidental version bumps.
+        # This check is skipped for the automated post-release merge from master back to dev.
+        if: github.event_name == 'pull_request' && github.base_ref == 'dev' && github.head_ref != 'master'
+        name: Check for accidental version bump
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Verify that version was not bumped
+              run: |
+                  echo "Checking for version changes in pyproject.toml..."
+                  DEV_PYPROJECT_VERSION=$(git show origin/dev:pyproject.toml | grep '^version = ' | awk -F'"' '{print $2}')
+                  HEAD_PYPROJECT_VERSION=$(grep '^version = ' pyproject.toml | awk -F'"' '{print $2}')
+
+                  if [ "$DEV_PYPROJECT_VERSION" != "$HEAD_PYPROJECT_VERSION" ]; then
+                      echo "::error::Version in pyproject.toml was changed in a PR to dev. (dev: $DEV_PYPROJECT_VERSION, HEAD: $HEAD_PYPROJECT_VERSION)"
+                      echo "Version bumping should only happen in a release PR to master."
+                      exit 1
+                  fi
+                  echo "Version check passed for pyproject.toml"
+
+                  echo "Checking for version changes in enforcer/__init__.py..."
+                  DEV_INIT_VERSION=$(git show origin/dev:enforcer/__init__.py | grep '^__version__ = ' | awk -F'"' '{print $2}')
+                  HEAD_INIT_VERSION=$(grep '^__version__ = ' enforcer/__init__.py | awk -F'"' '{print $2}')
+
+                  if [ "$DEV_INIT_VERSION" != "$HEAD_INIT_VERSION" ]; then
+                      echo "::error::Version in enforcer/__init__.py was changed in a PR to dev. (dev: $DEV_INIT_VERSION, HEAD: $HEAD_INIT_VERSION)"
+                      echo "Version bumping should only happen in a release PR to master."
+                      exit 1
+                  fi
+                  echo "Version check passed for enforcer/__init__.py"

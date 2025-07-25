@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+    - name: 📖 Documentation
+      url: https://github.com/Artemonim/AgentEnforcer/blob/master/README.md
+      about: Read the project documentation and setup instructions
+    - name: 📝 Contribution Guide
+      url: https://github.com/Artemonim/AgentEnforcer/blob/master/CONTRIBUTING.md
+      about: Learn how to contribute to the project
+    - name: 💬 Discussions
+      url: https://github.com/Artemonim/AgentEnforcer/discussions
+      about: Ask questions and discuss ideas with the community

@@ -1,9 +1,11 @@
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-import platform
 import os
-import pytest
+import platform
 import unittest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from enforcer.mcp_server import AgentEnforcerMCP, check_code
 
 

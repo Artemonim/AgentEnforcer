@@ -1,18 +1,54 @@
 # Agent Enforcer
 
-## Installation
+## Installation Options
 
-For global installation (once published):
+### Option 1: Global Installation (Recommended for MCP)
+
+Install once system-wide and use across all projects:
 
 ```bash
 pip install agent-enforcer
 ```
 
-For local development in this repo:
+**MCP Configuration for global install:**
+
+-   **Windows**: `"command": "agent-enforcer-mcp.exe"`
+-   **macOS/Linux**: `"command": "agent-enforcer-mcp"`
+
+### Option 2: Local Development Installation
+
+Install in project-specific virtual environment:
 
 ```bash
 pip install -e .
 ```
+
+**MCP Configuration for local install:**
+
+-   **Windows**: `"command": "./venv/Scripts/agent-enforcer-mcp.exe"`
+-   **macOS/Linux**: `"command": "./venv/bin/agent-enforcer-mcp"`
+
+### Option 3: Standalone Installation
+
+Install in dedicated location and use across projects:
+
+```bash
+# Create dedicated environment
+python -m venv ~/tools/agent-enforcer-env
+source ~/tools/agent-enforcer-env/bin/activate  # Linux/macOS
+# or
+~/tools/agent-enforcer-env/Scripts/activate     # Windows
+
+pip install agent-enforcer
+
+# Add to PATH or use full path in MCP config
+```
+
+**MCP Configuration for standalone:**
+
+-   **Windows**: `"command": "C:/Users/YourUser/tools/agent-enforcer-env/Scripts/agent-enforcer-mcp.exe"`
+-   **macOS**: `"command": "/Users/YourUser/tools/agent-enforcer-env/bin/agent-enforcer-mcp"`
+-   **Linux**: `"command": "/home/YourUser/tools/agent-enforcer-env/bin/agent-enforcer-mcp"`
 
 ## Usage
 
@@ -24,29 +60,18 @@ agent-enforcer src  # Check directory
 
 ## Configuration
 
--   The tool creates `.enforcer/config.json` for disabled rules (blacklist).
--   Add tool-specific configs like `.enforcer/flake8.json` for full rule sets, which can be edited.
--   Use --ignore flag for temporary disables, e.g., --ignore E501 or python:E501.
-
-## Adding Plugins
-
-Create a new file in enforcer/plugins/ with a Plugin class defining language, extensions, and check methods.
-
-# Remember to replace placeholders like YOUR_NAME.
+-   The tool creates `.enforcer/config.json` in your project root upon first run.
+-   **Debug Mode**: To enable the `debug` parameter for the `checker` tool, edit this file and set `"debug_mode_enabled": true`. This is useful for tool development.
+-   **Rule Management**: You can disable specific linting rules by adding them to the `disabled_rules` section.
+-   **Tool-Specific Configs**: For more advanced configurations, you can add tool-specific files like `.enforcer/flake8.json`.
 
 ## MCP-Tool Integration (Cursor IDE)
 
 You can use Agent Enforcer directly within Cursor IDE as a custom tool.
 
-### 1. Install/Update Agent Enforcer
+### 1. Choose Your Installation Method
 
-First, ensure you have the latest version installed in your environment. If you are developing locally in this repository, run:
-
-```bash
-pip install -e .
-```
-
-This command makes the `agent-enforcer-cli` and `agent-enforcer-mcp` scripts available.
+**For most users, global installation (Option 1) is recommended** as it allows you to use Agent Enforcer across all projects without reinstalling.
 
 ### 2. Configure in Cursor
 
@@ -55,86 +80,115 @@ Once installed, you need to tell Cursor how to run the MCP server.
 1.  Go to `File > Settings > Cursor` (or `Code > Settings > Settings`, then find `Cursor` in the list).
 2.  Scroll down to the **MCP** section.
 3.  Click **"Open mcp.json"**.
-4.  Add the following configuration to the `mcpServers` object. **Important:** You must use the **absolute path** to the correct script for your operating system.
+4.  Add the appropriate configuration based on your installation method:
 
-    ```json
-    {
-        "mcpServers": {
-            "agent_enforcer": {
-                "command": "G:/path/to/your/AgentEnforcer/run_mcp.bat"
-            }
+#### Global Installation (Recommended)
+
+```json
+{
+    "mcpServers": {
+        "agent_enforcer": {
+            "command": "agent-enforcer-mcp"
         }
     }
-    ```
+}
+```
 
-    _Note: On macOS/Linux, use `run_mcp.sh`._
+#### Local Virtual Environment
 
-    **How to get the absolute path:**
+```json
+{
+    "mcpServers": {
+        "agent_enforcer": {
+            "command": "./venv/Scripts/agent-enforcer-mcp.exe"
+        }
+    }
+}
+```
 
-    -   In the Cursor file explorer, right-click on `run_mcp.bat` (or `.sh`) and choose `Copy Path`.
-    -   Paste the path into the `command` field.
-    -   **Crucially**, ensure all backslashes (`\`) are replaced with forward slashes (`/`).
+#### Using run_mcp Scripts (Cross-platform)
+
+```json
+{
+    "mcpServers": {
+        "agent_enforcer": {
+            "command": "./run_mcp.bat"
+        }
+    }
+}
+```
+
+**Platform-specific notes:**
+
+-   **Windows**: Use `.exe` suffix for executables, forward slashes in paths
+-   **macOS/Linux**: Use `run_mcp.sh` instead of `run_mcp.bat`
+-   **macOS/Linux users**: Make sure `run_mcp.sh` is executable: `chmod +x run_mcp.sh`
 
 5.  Save the `mcp.json` file.
-6.  **Restart Cursor** to ensure it picks up the new configuration or switch the `agent_enforcer` switch in **MCP Tools** back and forth.
 
 After configuration, the `checker` tool will be available to the AI Agent in Cursor.
 
-### Troubleshooting
+## Available Tools and Prompts
 
--   **macOS/Linux users:** Make sure `run_mcp.sh` is executable. Run `chmod +x run_mcp.sh` in your terminal.
--   If the tool hangs or fails, try running the CLI command directly to see errors: `python -m enforcer.cli "path/to/check"`.
--   If the tool doesn't appear in Cursor, check the logs (View > Output > Cursor MCP).
+### Tools
 
-## Using the MCP Tool
+#### `checker`
 
-The server exposes one primary tool: `checker`.
+The main tool that runs comprehensive code quality checks using multiple linters:
 
-#### Tool: `checker`
-
-Runs a quality check on the codebase by calling the standalone `enforcer-cli`.
+-   **black** - Code formatting
+-   **isort** - Import sorting
+-   **flake8** - Style guide enforcement
+-   **mypy** - Static type checking
+-   **pyright** - Type checking and analysis
 
 **Parameters:**
 
--   `targets` (Optional, `str`): A JSON string representing a list of file or directory paths. If omitted, the entire repository is checked. Ex: `'["src/main.py", "tests/"]'`.
--   `check_git_modified_files` (Optional, `bool`, default: `false`): If `true`, ignores `targets` and checks only the files modified in git.
--   `verbose` (Optional, `bool`, default: `false`): If `true`, provides a detailed, file-by-file list of every issue. Essential for seeing specific error messages.
--   `timeout_seconds` (Optional, `int`, default: `0`): The timeout for the check in seconds. Set to `0` to disable the timeout entirely.
--   `debug` (Optional, `bool`, default: `false`): If `true` and the tool _times out_, it will return the full captured output for diagnosing hangs. In a normal run, this flag has no effect.
--   `root` (Optional, `str`): The absolute path to the repository root. If omitted, attempts to auto-detect via git. If detection fails (e.g., not in a git repo), an error is returned requiring the parameter.
+-   `resource_uris` - List of file URIs to check (optional)
+-   `check_git_modified_files` - Check only modified files in git (default: false)
+-   `verbose` - Provide detailed output (default: false)
+-   `timeout_seconds` - Timeout for the check (default: 0 = no timeout)
+-   `root` - Repository root path (auto-detected if not provided)
 
-**Returns:**
+### Prompts (MCP Protocol)
 
--   `str`: A formatted string containing the results of the check.
+The server also provides three prompts for structured AI interactions:
 
-**Example Usage (for an AI Agent):**
+#### `fix-this-file`
 
--   **Check the whole project with details:**
-    ```json
-    {
-        "tool": "checker",
-        "params": { "verbose": true, "root": "G:/GitHub/MyProject" }
-    }
-    ```
--   **Check a specific file and directory:**
-    ```json
-    {
-        "tool": "checker",
-        "params": {
-            "targets": "[\"src/main.py\", \"src/utils/\"]",
-            "verbose": true,
-            "root": "G:/GitHub/MyProject"
-        }
-    }
-    ```
--   **Check only the files I've changed:**
-    ```json
-    {
-        "tool": "checker",
-        "params": {
-            "check_git_modified_files": true,
-            "verbose": true,
-            "root": "G:/GitHub/MyProject"
-        }
-    }
-    ```
+**Title:** Fix Code Issues  
+**Description:** Generates a structured prompt asking the AI to fix specific linting issues in a given file.
+
+#### `summarize-lint-errors`
+
+**Title:** Summarize Lint Errors  
+**Description:** Creates a prompt asking the AI to summarize and prioritize the most critical errors from a lint report.
+
+#### `explain-rule`
+
+**Title:** Explain Lint Rule  
+**Description:** Generates a prompt asking the AI to explain a specific linting rule and provide examples of how to fix violations.
+
+**Note:** Prompts are part of the MCP protocol but are **not currently supported in Cursor**. They work in other MCP-compatible clients that support the prompts API.
+
+### Installation Best Practices
+
+**When to use each method:**
+
+-   **Global install**: The best choice for MCP, as it works in all projects without additional configuration.
+-   **Local install**: If you want to explicitly set Agent Enforcer as dev dependency.
+-   **Standalone**: It is good for isolated installation in a system without polluting global Python.
+
+**Рекомендации для конечных пользователей:**
+
+-   Используйте **глобальную установку** для MCP - это самый простой и надежный способ
+-   **Не устанавливайте как dev dependency в каждый workspace** - это создаст дублирование и усложнит управление версиями
+-   Для разработки используйте `pip install -e .` в виртуальной среде проекта
+
+### Troubleshooting
+
+-   **Command not found**: Убедитесь, что Python Scripts директория добавлена в PATH для глобальной установки
+-   **Permission errors**: На macOS/Linux используйте `chmod +x` для скриптов
+-   **Virtual environment issues**: Активируйте виртуальную среду перед запуском
+-   If the tool doesn't appear in Cursor, check the logs (View > Output > Cursor MCP).
+-   **Path issues**: Use forward slashes (`/`) in paths, even on Windows

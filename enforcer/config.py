@@ -10,10 +10,19 @@ def load_config(root_path):
         enforcer_dir, "config.json"
     )  # Changed to inside .enforcer
     if not os.path.exists(config_path):
+        # * Create a default config if it doesn't exist
+        default_config = {"disabled_rules": {}, "debug_mode_enabled": False}
         with open(config_path, "w") as f:
-            json.dump({"disabled_rules": {}}, f)
-    with open(config_path, "r") as f:
-        config = json.load(f)
+            json.dump(default_config, f, indent=4)
+        config = default_config
+    else:
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+    # * Ensure debug mode key exists for existing configs
+    if "debug_mode_enabled" not in config:
+        config["debug_mode_enabled"] = False
+
     # Optionally load tool-specific configs from .enforcer/
     config["tool_configs"] = {}
     for file in os.listdir(enforcer_dir):

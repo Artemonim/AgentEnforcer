@@ -38,8 +38,48 @@ def _uri_to_path(uri: str) -> str:
         # We need to strip the leading slash to get a valid path 'G:/foo/bar'.
         if re.match(r"/\w:[/\\]", path):
             path = path[1:]
-    
+
     return os.path.normpath(path)
+
+
+# * Wrapper function without debug for production use
+async def check_code_no_debug(
+    resource_uris: Optional[List[str]] = None,
+    check_git_modified_files: bool = False,
+    verbose: bool = False,
+    timeout_seconds: int = 0,
+    root: Optional[str] = None,
+) -> dict:
+    """Runs a quality check on the specified files (production version without debug).
+
+    Args:
+        resource_uris (Optional[List[str]], optional): A list of file URIs to check. If omitted, the entire repository is checked. Ex: ["file:///G:/path/to/file.py"]. Defaults to None.
+        check_git_modified_files (bool, optional): If true, ignores resource_uris and checks only the files modified in git. Defaults to False.
+        verbose (bool, optional): If true, provides a detailed, file-by-file list of every issue. Essential for seeing specific error messages. Defaults to False.
+        timeout_seconds (int, optional): The timeout for the check in seconds. Set to 0 to disable the timeout entirely. Defaults to 0.
+        root (Optional[str], optional): The absolute path to the repository root. If omitted, attempts to auto-detect via git. If detection fails (e.g., not in a git repo), an error is returned requiring the parameter. Defaults to None.
+
+    Returns:
+        dict: A dictionary containing the results of the check, with keys like 'errors', 'warnings', and 'messages'.
+
+    Example Usage:
+        - Check the whole project with details:
+          {"verbose": true, "root": "G:/GitHub/MyProject"}
+
+        - Check a specific file and directory:
+          {"resource_uris": ["file:///G:/GitHub/MyProject/src/main.py"], "verbose": true}
+
+        - Check only the files I've changed:
+          {"check_git_modified_files": true, "verbose": true}
+    """
+    return await check_code(
+        resource_uris=resource_uris,
+        check_git_modified_files=check_git_modified_files,
+        verbose=verbose,
+        timeout_seconds=timeout_seconds,
+        debug=False,
+        root=root,
+    )
 
 
 class FilePathResource(Resource):
@@ -147,7 +187,29 @@ class AgentEnforcerMCP(FastMCP[dict]):
             instructions="Agent Enforcer is a code quality checker that can lint and autofix code in multiple languages.",
         )
 
-        self.add_tool(FunctionTool.from_function(check_code, name="checker"))
+        # * Conditionally add checker based on config file
+        debug_mode = False
+        try:
+            # ? We need the root to load config, but can't get it from context in sync __init__.
+            # ? Using git root detection as a reliable fallback.
+            root = get_git_root()
+            if root:
+                config = load_config(root)
+                debug_mode = config.get("debug_mode_enabled", False)
+        except Exception:
+            # ! If git root or config fails, default to non-debug mode.
+            pass  # Silently fail, assuming debug is off.
+
+        if debug_mode:
+            self.add_tool(FunctionTool.from_function(check_code, name="checker"))
+        else:
+            self.add_tool(
+                FunctionTool.from_function(
+                    check_code_no_debug,
+                    name="checker",
+                    description="Runs comprehensive code quality checks using multiple linters (black, isort, flake8, mypy, pyright) and returns structured results with errors, warnings, and suggestions for improvement.",
+                )
+            )
 
         # Add prompts
         def fix_this_file(file: str, issues: str) -> list[PromptMessage]:
@@ -162,7 +224,8 @@ class AgentEnforcerMCP(FastMCP[dict]):
             FunctionPrompt.from_function(
                 fix_this_file,
                 name="fix-this-file",
-                description="Prompt to fix issues in a file based on lint results.",
+                title="Fix Code Issues",
+                description="Generates a structured prompt asking the AI to fix specific linting issues in a given file. Use this when you have lint errors and want the AI to suggest corrections.",
             )
         )
 
@@ -178,7 +241,8 @@ class AgentEnforcerMCP(FastMCP[dict]):
             FunctionPrompt.from_function(
                 summarize_lint_errors,
                 name="summarize-lint-errors",
-                description="Summarize the most critical lint errors.",
+                title="Summarize Lint Errors",
+                description="Creates a prompt asking the AI to summarize and prioritize the most critical errors from a lint report. Useful for getting a high-level overview of code quality issues.",
             )
         )
 
@@ -194,7 +258,8 @@ class AgentEnforcerMCP(FastMCP[dict]):
             FunctionPrompt.from_function(
                 explain_rule,
                 name="explain-rule",
-                description="Explain a specific lint rule and how to fix it.",
+                title="Explain Lint Rule",
+                description="Generates a prompt asking the AI to explain a specific linting rule, why it's important, and provide examples of how to fix violations. Helpful for learning about code quality standards.",
             )
         )
 

@@ -4,6 +4,8 @@ import platform
 import re
 import urllib.parse
 import urllib.request
+import ntpath
+import posixpath
 from typing import Any, List, Optional
 
 import anyio
@@ -25,21 +27,24 @@ from .utils import get_git_modified_files, get_git_root
 
 def _uri_to_path(uri: str) -> str:
     """
-    Converts a file URI to a platform-native path, correcting for Windows path issues.
+    Converts a file URI to a platform-native path, correcting for Windows path issues,
+    independent of the host OS.
     """
     is_windows = platform.system() == "Windows"
     path = uri
 
     if path.startswith("file://"):
-        parsed_uri = urllib.parse.urlparse(path)
+        parsed_uri = urllib.parse.urlparse(uri)
         path = urllib.parse.unquote(parsed_uri.path)
         if is_windows and re.match(r"/\w:[/\\]", path):
             path = path[1:]
 
     if is_windows:
-        return os.path.normpath(path)
+        # Use ntpath to force Windows path normalization
+        return ntpath.normpath(path)
     else:
-        return path
+        # Use posixpath to force Posix path normalization
+        return posixpath.normpath(path)
 
 
 # * Dynamic wrapper that reads config at runtime to determine debug mode

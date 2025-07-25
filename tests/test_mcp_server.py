@@ -232,6 +232,31 @@ def test_uri_to_path_non_windows():
         assert _uri_to_path("file:///path/with%20space") == "/path/with space"
 
 
+def test_uri_to_path_regression_mixed_separators():
+    """
+    Tests that paths with mixed separators and parent directory components
+    are correctly normalized regardless of the host OS.
+    """
+    # Test case for Windows: mixed separators and .. should resolve correctly
+    with patch("platform.system", return_value="Windows"):
+        assert (
+            _uri_to_path("file:///C:/Users/test/../project/file.txt")
+            == "C:\\Users\\project\\file.txt"
+        )
+        assert (
+            _uri_to_path("C:/Users/test/../project/file.txt")
+            == "C:\\Users\\project\\file.txt"
+        )
+
+    # Test case for Linux: mixed separators and .. should resolve correctly
+    with patch("platform.system", return_value="Linux"):
+        assert (
+            _uri_to_path("file:///home/user/../project/file.txt")
+            == "/home/project/file.txt"
+        )
+        assert _uri_to_path("/home/user/../project/file.txt") == "/home/project/file.txt"
+
+
 @pytest.mark.asyncio
 async def test_check_code_no_root_fallback():
     with patch("enforcer.mcp_server.get_context") as mock_get_context, patch(

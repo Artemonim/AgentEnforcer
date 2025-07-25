@@ -192,7 +192,9 @@ async def test_list_resources():
         "enforcer.mcp_server._uri_to_path", return_value="/root"
     ), patch("enforcer.mcp_server.Enforcer") as MockEnforcer, patch(
         "os.path.isdir", return_value=True
-    ):
+    ), patch(
+        "enforcer.mcp_server.load_config", return_value={}
+    ) as mock_load_config:
 
         mock_ctx = MagicMock()
         mock_root = MagicMock()
@@ -209,7 +211,7 @@ async def test_list_resources():
         resources = await mcp._list_resources()
 
         assert len(resources) == 1
-        MockEnforcer.assert_called_with(root_path="/root", config=ANY)
+        MockEnforcer.assert_called_with(root_path="/root", config={})
 
 
 def test_init():
@@ -221,13 +223,13 @@ def test_uri_to_path_windows():
     with patch("platform.system", return_value="Windows"):
         assert _uri_to_path("file:///G:/foo/bar") == "G:\\foo\\bar"
         assert _uri_to_path("file:///C:/path/with%20space") == "C:\\path\\with space"
-        assert _uri_to_path("/local/path") == "/local/path"  # Non-URI, unchanged
+        assert _uri_to_path("/local/path") == "\\local\\path"
 
 
 def test_uri_to_path_non_windows():
     with patch("platform.system", return_value="Linux"):
-        assert _uri_to_path("file:///home/user/file") == "\\home\\user\\file"
-        assert _uri_to_path("file:///path/with%20space") == "\\path\\with space"
+        assert _uri_to_path("file:///home/user/file") == "/home/user/file"
+        assert _uri_to_path("file:///path/with%20space") == "/path/with space"
 
 
 @pytest.mark.asyncio

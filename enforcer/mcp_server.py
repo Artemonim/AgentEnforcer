@@ -27,19 +27,19 @@ def _uri_to_path(uri: str) -> str:
     """
     Converts a file URI to a platform-native path, correcting for Windows path issues.
     """
-    if not uri.startswith("file://"):
-        return uri
+    is_windows = platform.system() == "Windows"
+    path = uri
 
-    parsed_uri = urllib.parse.urlparse(uri)
-    path = urllib.parse.unquote(parsed_uri.path)
-
-    if platform.system() == "Windows":
-        # On Windows, for a URI like 'file:///G:/foo/bar', the path becomes '/G:/foo/bar'.
-        # We need to strip the leading slash to get a valid path 'G:/foo/bar'.
-        if re.match(r"/\w:[/\\]", path):
+    if path.startswith("file://"):
+        parsed_uri = urllib.parse.urlparse(path)
+        path = urllib.parse.unquote(parsed_uri.path)
+        if is_windows and re.match(r"/\w:[/\\]", path):
             path = path[1:]
 
-    return os.path.normpath(path)
+    if is_windows:
+        return os.path.normpath(path)
+    else:
+        return path
 
 
 # * Dynamic wrapper that reads config at runtime to determine debug mode

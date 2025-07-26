@@ -30,15 +30,3 @@ jobs:
             - name: Publish package to PyPI
               uses: pypa/gh-action-pypi-publish@release/v1
               # No password needed, it uses the OIDC identity token
-
-            - name: Create merge-back PR to dev
-              continue-on-error: true
-              run: |
-                  owner=$(echo ${{ github.repository }} | cut -d '/' -f1)
-                  repo=$(echo ${{ github.repository }} | cut -d '/' -f2)
-                  tag=${{ github.ref_name }}
-                  branch=$(echo $tag | sed 's/^v/release\//')
-                  curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                    -H "Accept: application/vnd.github.v3+json" \
-                    https://api.github.com/repos/$owner/$repo/pulls \
-                    -d "{\"title\":\"Merge back $branch to dev\",\"body\":\"Automatic merge-back after release $tag\",\"head\":\"$branch\",\"base\":\"dev\"}"

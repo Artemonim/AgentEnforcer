@@ -14,7 +14,13 @@
 
 **Agent Enforcer** is a powerful and flexible code quality checking tool designed to be used by both developers and AI agents. It integrates multiple linters and formatters to provide comprehensive feedback, and it can be used as a standalone CLI tool or as an MCP server within compatible editors like Cursor.
 
----
+## Part of the Artemonim's Agent Tools Ecosystem
+
+Agent Compass is part of the larger **[Artemonim's Agent Tools](https://github.com/Artemonim/AgentTools)** ecosystem:
+
+-   **[Agent Compass](https://github.com/Artemonim/AgentCompass)** — A comprehensive policy framework for AI-assisted development in Cursor IDE
+-   **[Agent Docstrings](https://github.com/Artemonim/AgentDocstrings)** — Helps AI understand your codebase structure
+-   **Agent Viewport** _(Coming summer 2025)_ — UI markup understanding for AI assistants
 
 ## Table of Contents
 
@@ -32,7 +38,6 @@
 -   [Changelog](#changelog)
 -   [License](#license)
 
----
 
 ## Features
 

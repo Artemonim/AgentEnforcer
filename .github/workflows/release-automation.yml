@@ -41,7 +41,7 @@ jobs:
               id: create_release
               uses: actions/create-release@v1
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ secrets.AUTOMATION_TOKEN }}
               with:
                   tag_name: v${{ steps.get_version.outputs.version }}
                   release_name: v${{ steps.get_version.outputs.version }}
@@ -50,10 +50,9 @@ jobs:
                   prerelease: false
 
             - name: Create back-merge PR to dev
-              continue-on-error: true
               run: |
-                  curl -X POST \
-                    -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                  curl -sfL -X POST \
+                    -H "Authorization: token ${{ secrets.AUTOMATION_TOKEN }}" \
                     -H "Accept: application/vnd.github.v3+json" \
                     https://api.github.com/repos/${{ github.repository }}/pulls \
                     -d '{"title":"Post-Release: Merge master back into dev","body":"Automated PR to sync master back into dev after release v${{ steps.get_version.outputs.version }}.","head":"master","base":"dev"}'

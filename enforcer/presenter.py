@@ -78,7 +78,7 @@ class Presenter:
         for i, issue in enumerate(issues):
             if limit and i >= limit:
                 self.output_buffer.append(
-                    f"  ... and {len(issues) - limit} more warnings. See Enforcer_last_check.log for details."
+                    f"  ... and {len(issues) - limit} more warnings. See the log file for details."
                 )
                 break
 
@@ -165,7 +165,7 @@ class Presenter:
                 )
 
         self.output_buffer.append(
-            "\n* For a detailed machine-readable report, see Enforcer_last_check.log"
+            "\n* For a detailed machine-readable report, see the generated log file."
         )
         self.output_buffer.append(
             "* You shoud use grep tool to analyze the log file. Don't read it - it's big."

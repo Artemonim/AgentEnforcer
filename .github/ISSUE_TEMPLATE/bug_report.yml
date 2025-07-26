@@ -98,7 +98,7 @@ body:
           description: Please provide details about your environment
           placeholder: |
               - OS: Windows 11, Linux (which distro?), macOS
-              - Python Version: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13
+              - Python Version: 3.10, 3.11, 3.12, 3.13
               - Agent Enforcer Version: (run 'pip show agent-enforcer')
               - Installation method: pip, from source
       validations:

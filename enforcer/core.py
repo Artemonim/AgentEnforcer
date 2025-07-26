@@ -42,6 +42,14 @@ class Enforcer:
         self.presenter = Presenter(verbose=self.verbose)
         self.warned_missing: set[str] = set()
 
+        # ! Setup paths relative to the root_path
+        self.enforcer_dir = os.path.join(self.root_path, ".enforcer")
+        os.makedirs(self.enforcer_dir, exist_ok=True)
+        self.last_check_log_path = os.path.join(
+            self.enforcer_dir, "Enforcer_last_check.log"
+        )
+        self.stats_log_path = os.path.join(self.enforcer_dir, "Enforcer_stats.log")
+
     def _load_gitignore(self):
         if os.path.exists(self.gitignore_path):
             from gitignore_parser import parse_gitignore  # type: ignore
@@ -105,7 +113,7 @@ class Enforcer:
         if detailed_logger.hasHandlers():
             detailed_logger.handlers.clear()
         fh_detailed = logging.FileHandler(
-            "Enforcer_last_check.log", mode="w", encoding="utf-8"
+            self.last_check_log_path, mode="w", encoding="utf-8"
         )
         detailed_logger.addHandler(fh_detailed)
 
@@ -114,7 +122,7 @@ class Enforcer:
         stats_logger.setLevel(logging.INFO)
         if stats_logger.hasHandlers():
             stats_logger.handlers.clear()
-        fh_stats = logging.FileHandler("Enforcer_stats.log", mode="a", encoding="utf-8")
+        fh_stats = logging.FileHandler(self.stats_log_path, mode="a", encoding="utf-8")
         stats_logger.addHandler(fh_stats)
 
         return detailed_logger, stats_logger

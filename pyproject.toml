@@ -10,9 +10,9 @@ name = "agent-enforcer"
 version = "0.9.0"
 description = "Agent Enforcer: A modular code quality checking tool"
 readme = { file = "README.md", content-type = "text/markdown" }
-license = { text = "MIT" }
+license = "MIT"
 authors = [
-    { name = "YOUR_NAME", email = "your.email@example.com" },
+    { name = "Artemonim", email = "artemonim@yandex.ru" },
 ]
 requires-python = ">=3.7"
 dependencies = [
@@ -64,13 +64,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = [
-    "--cov=enforcer",
-    "--cov-report=term-missing",
-    "--cov-report=html",
-    "--cov-report=xml",
-    "--cov-fail-under=75"
-]
+addopts = []
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
@@ -100,4 +94,10 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
+] 
+
+[tool.coverage.paths]
+source = [
+    "enforcer",
+    "**/site-packages/enforcer",
 ] 

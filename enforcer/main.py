@@ -6,6 +6,8 @@ from .config import load_config, save_config
 from .core import Enforcer
 from .utils import get_git_modified_files
 
+import importlib.metadata
+
 test = "test"
 
 
@@ -25,6 +27,15 @@ Examples:
 """
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    try:
+        version = importlib.metadata.version('agent-enforcer')
+    except importlib.metadata.PackageNotFoundError:
+        version = 'unknown'
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=f'%(prog)s {version}'
     )
     parser.add_argument(
         "paths",

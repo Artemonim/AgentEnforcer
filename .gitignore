@@ -151,4 +151,5 @@ Thumbs.db
 temporary/
 Enforcer_last_check.log
 Enforcer_stats.log
+.enforcer/
 .enforcer/debug.json

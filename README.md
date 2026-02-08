@@ -1,5 +1,10 @@
 <!-- ain badges -->
 
+> [!CAUTION]
+> **This project is no longer active.**
+> The current and maintained version is now **[Agent Enforcer 2](https://github.com/Artemonim/AgentEnforcer2)**.
+> It provides a robust, language-agnostic reference architecture for local CI systems.
+
 [![PyPI version](https://badge.fury.io/py/agent-enforcer.svg)](https://badge.fury.io/py/agent-enforcer)
 [![Python versions](https://img.shields.io/pypi/pyversions/agent-enforcer.svg)](https://pypi.org/project/agent-enforcer/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

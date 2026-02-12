@@ -21,11 +21,12 @@
 
 ## Part of the Artemonim's Agent Tools Ecosystem
 
-Agent Compass is part of the larger **[Artemonim's Agent Tools](https://github.com/Artemonim/AgentTools)** ecosystem:
+Agent Enforcer is part of the larger **[Artemonim's Agent Tools](https://github.com/Artemonim/AgentTools)** ecosystem:
 
 -   **[Agent Compass](https://github.com/Artemonim/AgentCompass)** — A comprehensive policy framework for AI-assisted development in Cursor IDE
--   **[Agent Docstrings](https://github.com/Artemonim/AgentDocstrings)** — Helps AI understand your codebase structure
--   **Agent Viewport** _(Coming summer 2025)_ — UI markup understanding for AI assistants
+-   **[Agent Enforcer 2](https://github.com/Artemonim/AgentEnforcer2)** — Local CI blueprint and reference architecture (maintained successor)
+-   **[Agent Docstrings (Archived)](https://github.com/Artemonim/AgentDocstrings)** — File-level structure summaries (legacy)
+-   **Agent Viewport** _(On Hold / Uncertain)_ — UI markup understanding concept for AI assistants
 
 ## Table of Contents
 
@@ -209,15 +210,12 @@ It is recommended to add this logs to your project's `.gitignore` file to avoid 
 
 ## Support the Project
 
-Agent Docstrings is an independent open-source project. If you find this tool useful and want to support its ongoing development, your help would be greatly appreciated.
+This project is archived. If you find it useful and want to support my work, thank you!
 
-Here are a few ways you can contribute:
+You can support my work in two ways:
 
--   **Give a Star:** The simplest way to show your support is to star the project on [GitHub](https://github.com/Artemonim/AgentDocstrings)! It increases the project's visibility.
--   **Support My Work:** Your financial contribution helps me dedicate more time to improving this tool and creating other open-source projects. On my [**Boosty page**](https://boosty.to/artemonim), you can:
-    -   Make a **one-time donation** to thank me for this specific project.
-    -   Become a **monthly supporter** to help all of my creative endeavors.
--   **Try a Recommended Tool:** This project was inspired by my work with LLMs. If you're looking for a great service to work with multiple neural networks, check out [**Syntx AI**](https://t.me/syntxaibot?start=aff_157453205). Using my referral link is another way to support my work at no extra cost to you.
+-   **Give a Star:** Star the repositories you use on GitHub.
+-   **Support on Sponsr:** Support me on [Sponsr](https://sponsr.ru/artemonim/).
 
 Thank you for your support!
 
